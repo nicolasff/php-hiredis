@@ -21,6 +21,8 @@
 #ifndef PHP_REDIS_H
 #define PHP_REDIS_H
 
+#include "hiredis/hiredis.h"
+
 PHP_METHOD(Redis, __construct);
 PHP_METHOD(Redis, connect);
 PHP_METHOD(Redis, close);
@@ -151,7 +153,7 @@ void add_constant_long(zend_class_entry *ce, char *name, int value);
 PHPAPI void redis_check_eof(RedisSock *redis_sock TSRMLS_DC);
 PHPAPI RedisSock* redis_sock_create(char *host, int host_len, unsigned short port, long timeout);
 PHPAPI int redis_sock_connect(RedisSock *redis_sock TSRMLS_DC);
-PHPAPI int redis_sock_disconnect(RedisSock *redis_sock TSRMLS_DC);
+PHPAPI int redis_sock_disconnect(redisContext *redis_ctx TSRMLS_DC);
 PHPAPI int redis_sock_server_open(RedisSock *redis_sock, int TSRMLS_DC);
 PHPAPI char * redis_sock_read(RedisSock *redis_sock, int *buf_len TSRMLS_DC);
 PHPAPI char * redis_sock_read_bulk_reply(RedisSock *redis_sock, int bytes);

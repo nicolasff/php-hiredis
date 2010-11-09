@@ -28,7 +28,6 @@
 #include "ext/standard/info.h"
 #include "php_redis.h"
 #include <zend_exceptions.h>
-#include "hiredis/hiredis.h"
 
 static int le_redis_sock;
 static zend_class_entry *redis_ce;
@@ -65,6 +64,98 @@ zend_module_entry redis_module_entry = {
 #ifdef COMPILE_DL_REDIS
 ZEND_GET_MODULE(redis)
 #endif
+
+static void *tryParentize(const redisReadTask *task, zval *v) {
+        if (task && task->parent != NULL) {
+                zval *parent = (zval *)task->parent;
+                assert(Z_TYPE_P(parent) == IS_ARRAY);
+                /* rb_ary_store(parent,task->idx,v); */
+        }
+        return (void*)v;
+}
+
+static void *createStringObject(const redisReadTask *task, char *str, size_t len) {
+
+        zval *z_ret;
+        MAKE_STD_ZVAL(z_ret);
+        ZVAL_STRINGL(z_ret, str, len, 1);
+
+#if 0
+        VALUE v, enc;
+        v = rb_str_new(str,len);
+
+        /* Force default external encoding if possible. */
+        if (enc_default_external) {
+                enc = rb_funcall(enc_klass,enc_default_external,0);
+                v = rb_funcall(v,str_force_encoding,1,enc);
+        }
+
+#endif
+#if 0
+        if (task->type == REDIS_REPLY_ERROR) {
+                rb_ivar_set(v,ivar_hiredis_error,v);
+                if (task && task->parent != NULL) {
+                        /* Also make the parent respond to this method. Redis currently
+                         * only emits nested multi bulks of depth 2, so we don't need
+                         * to cascade setting this ivar. Make sure to only set the first
+                         * error reply on the parent. */
+                        VALUE parent = (VALUE)task->parent;
+                        if (!rb_ivar_defined(parent,ivar_hiredis_error))
+                                rb_ivar_set(parent,ivar_hiredis_error,v);
+                }
+        }
+#endif
+
+        return tryParentize(task, z_ret);
+}
+
+static void *createArrayObject(const redisReadTask *task, int elements) {
+        zval *z_ret;
+        MAKE_STD_ZVAL(z_ret);
+        array_init(z_ret);
+
+        return tryParentize(task, z_ret);
+}
+
+static void *createIntegerObject(const redisReadTask *task, long long value) {
+        zval *z_ret;
+        MAKE_STD_ZVAL(z_ret);
+        ZVAL_LONG(z_ret, value);
+        return tryParentize(task, z_ret);
+}
+
+static void *createNilObject(const redisReadTask *task) {
+        zval *z_ret;
+        MAKE_STD_ZVAL(z_ret);
+        ZVAL_NULL(z_ret);
+        return tryParentize(task, z_ret);
+}
+
+static void freeObject(void *ptr) {
+        /* Garbage collection will clean things up. */
+}
+
+
+
+
+redisReplyObjectFunctions redisExtReplyObjectFunctions = {
+    createStringObject,
+    createArrayObject,
+    createIntegerObject,
+    createNilObject,
+    freeObject
+};
+
+
+PHPAPI int redis_sock_disconnect(redisContext *redis_ctx TSRMLS_DC)
+{
+    if(!redis_ctx) {
+            return 0;
+    }
+
+    redisFree(redis_ctx);
+    return 1;
+}
 
 /**
  * redis_destructor_redis_sock
@@ -140,6 +231,7 @@ PHP_METHOD(Redis, __construct)
 }
 /* }}} */
 
+void *reader;
 /**
  * redis_sock_get
  */
@@ -159,6 +251,9 @@ PHPAPI int redis_sock_get(zval *id, redisContext **redis_ctx TSRMLS_DC)
     if (!*redis_ctx || resource_type != le_redis_sock) {
             return -1;
     }
+
+    reader = redisReplyReaderCreate(); /* TODO: add to phpredis object */
+    redisReplyReaderSetReplyObjectFunctions(reader, &redisExtReplyObjectFunctions);
 
     return Z_LVAL_PP(socket);
 }
@@ -213,7 +308,6 @@ PHP_METHOD(Redis, close)
         &object, redis_ce) == FAILURE) {
         RETURN_FALSE;
     }
-/*
     if (redis_sock_get(object, &redis_ctx TSRMLS_CC) < 0) {
         RETURN_FALSE;
     }
@@ -221,7 +315,7 @@ PHP_METHOD(Redis, close)
     if (redis_sock_disconnect(redis_ctx TSRMLS_CC)) {
         RETURN_TRUE;
     }
-*/
+
     RETURN_FALSE;
 }
 /* }}} */
@@ -249,7 +343,8 @@ PHP_METHOD(Redis, set)
     }
 
     reply = redisCommand(redis_ctx, "SET %b %b", key, key_len, val, val_len);
-    if(!reply) {
+    if(redisReplyReaderGetReply(reader,(void**)&reply) != REDIS_OK) {
+            freeReplyObject(reply);
             RETURN_FALSE;
     }
     if(reply->type == REDIS_REPLY_STATUS && strncmp(reply->str, "OK", 2) == 0) {
