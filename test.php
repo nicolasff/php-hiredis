@@ -19,6 +19,18 @@ function test($className) {
 
 	printf("[%s] %d gets: %0.2f sec (%d/sec)\n", $className, $count, $t2-$t1, ($count)/($t2-$t1));
 
+	printf("Testing pipelining support, SET followed by GET.\n");
+
+	for($i = 0; $i < $count; $i++) {
+		$r->pipeline()
+			->set('key', 'value')
+			->get('key')
+			->exec();
+	}
+	$t3 = microtime(true);
+
+	printf("[%s] %d pipelined (SET+GET): %0.2f sec (%d/sec)\n", $className, $count, $t3-$t2, ($count)/($t3-$t2));
+
 	$r->close();
 }
 

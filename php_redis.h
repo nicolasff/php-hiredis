@@ -29,6 +29,8 @@ PHP_METHOD(HiRedis, close);
 PHP_METHOD(HiRedis, ping);
 PHP_METHOD(HiRedis, get);
 PHP_METHOD(HiRedis, set);
+PHP_METHOD(HiRedis, pipeline);
+PHP_METHOD(HiRedis, exec);
 /*
 PHP_METHOD(Redis, setnx);
 PHP_METHOD(Redis, getSet);
@@ -124,14 +126,13 @@ PHP_RINIT_FUNCTION(hiredis);
 PHP_RSHUTDOWN_FUNCTION(hiredis);
 PHP_MINFO_FUNCTION(hiredis);
 
+typedef enum {REDIS_MODE_BLOCKING, REDIS_MODE_PIPELINE, REDIS_MODE_TRANSACTION} redis_mode;
+
 /* {{{ struct RedisSock */
 typedef struct RedisSock_ {
-    php_stream     *stream;
-    char           *host;
-    unsigned short port;
-    long           timeout;
-    int            failed;
-    int            status;
+	redisContext *ctx;
+	redis_mode mode;
+	int enqueued_commands;
 } RedisSock;
 /* }}} */
 
@@ -155,7 +156,7 @@ void add_constant_long(zend_class_entry *ce, char *name, int value);
 PHPAPI void redis_check_eof(RedisSock *redis_sock TSRMLS_DC);
 PHPAPI RedisSock* redis_sock_create(char *host, int host_len, unsigned short port, long timeout);
 PHPAPI int redis_sock_connect(RedisSock *redis_sock TSRMLS_DC);
-PHPAPI int redis_sock_disconnect(redisContext *redis_ctx TSRMLS_DC);
+PHPAPI int redis_sock_disconnect(RedisSock *redis_sock TSRMLS_DC);
 PHPAPI int redis_sock_server_open(RedisSock *redis_sock, int TSRMLS_DC);
 PHPAPI char * redis_sock_read(RedisSock *redis_sock, int *buf_len TSRMLS_DC);
 PHPAPI char * redis_sock_read_bulk_reply(RedisSock *redis_sock, int bytes);
