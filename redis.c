@@ -66,7 +66,9 @@ ZEND_GET_MODULE(redis)
 #endif
 
 static void *tryParentize(const redisReadTask *task, zval *v) {
+        // php_printf("CALLBACK: %s\n", __FUNCTION__);
         if (task && task->parent != NULL) {
+                // php_printf("INSIDE\n");
                 zval *parent = (zval *)task->parent;
                 assert(Z_TYPE_P(parent) == IS_ARRAY);
                 /* rb_ary_store(parent,task->idx,v); */
@@ -76,9 +78,11 @@ static void *tryParentize(const redisReadTask *task, zval *v) {
 
 static void *createStringObject(const redisReadTask *task, char *str, size_t len) {
 
+        // php_printf("CALLBACK: %s\n", __FUNCTION__);
         zval *z_ret;
         MAKE_STD_ZVAL(z_ret);
         ZVAL_STRINGL(z_ret, str, len, 1);
+        // php_printf("created string object (%zd)[%s], z_ret=%p\n", len, str, z_ret);
 
 #if 0
         VALUE v, enc;
@@ -110,6 +114,7 @@ static void *createStringObject(const redisReadTask *task, char *str, size_t len
 }
 
 static void *createArrayObject(const redisReadTask *task, int elements) {
+        // php_printf("CALLBACK: %s\n", __FUNCTION__);
         zval *z_ret;
         MAKE_STD_ZVAL(z_ret);
         array_init(z_ret);
@@ -118,6 +123,7 @@ static void *createArrayObject(const redisReadTask *task, int elements) {
 }
 
 static void *createIntegerObject(const redisReadTask *task, long long value) {
+        // php_printf("CALLBACK: %s\n", __FUNCTION__);
         zval *z_ret;
         MAKE_STD_ZVAL(z_ret);
         ZVAL_LONG(z_ret, value);
@@ -125,6 +131,7 @@ static void *createIntegerObject(const redisReadTask *task, long long value) {
 }
 
 static void *createNilObject(const redisReadTask *task) {
+        // php_printf("CALLBACK: %s\n", __FUNCTION__);
         zval *z_ret;
         MAKE_STD_ZVAL(z_ret);
         ZVAL_NULL(z_ret);
@@ -132,6 +139,7 @@ static void *createNilObject(const redisReadTask *task) {
 }
 
 static void freeObject(void *ptr) {
+        // php_printf("CALLBACK: %s\n", __FUNCTION__);
         /* Garbage collection will clean things up. */
 }
 
@@ -231,7 +239,6 @@ PHP_METHOD(Redis, __construct)
 }
 /* }}} */
 
-void *reader;
 /**
  * redis_sock_get
  */
@@ -252,8 +259,8 @@ PHPAPI int redis_sock_get(zval *id, redisContext **redis_ctx TSRMLS_DC)
             return -1;
     }
 
-    reader = redisReplyReaderCreate(); /* TODO: add to phpredis object */
-    redisReplyReaderSetReplyObjectFunctions(reader, &redisExtReplyObjectFunctions);
+    (*redis_ctx)->reader = redisReplyReaderCreate(); /* TODO: add to phpredis object */
+    redisReplyReaderSetReplyObjectFunctions((*redis_ctx)->reader, &redisExtReplyObjectFunctions);
 
     return Z_LVAL_PP(socket);
 }
@@ -328,9 +335,9 @@ PHP_METHOD(Redis, set)
     zval *object;
     redisContext *redis_ctx;
     char *key = NULL, *val = NULL;
-    int key_len, val_len;
+    int key_len, val_len, success = 0;
 
-    redisReply *reply;
+    zval *z_reply;
 
     if (zend_parse_method_parameters(ZEND_NUM_ARGS() TSRMLS_CC, getThis(), "Oss",
                                      &object, redis_ce, &key, &key_len,
@@ -342,7 +349,20 @@ PHP_METHOD(Redis, set)
         RETURN_FALSE;
     }
 
-    reply = redisCommand(redis_ctx, "SET %b %b", key, key_len, val, val_len);
+    z_reply = redisCommand(redis_ctx, "SET %b %b", key, key_len, val, val_len);
+    if(z_reply && Z_TYPE_P(z_reply) == IS_STRING && strncmp(Z_STRVAL_P(z_reply), "OK", 2) == 0) {
+            success = 1;
+    }
+    
+    zval_dtor(z_reply);
+    efree(z_reply);
+
+    if(success) {
+            RETURN_TRUE;
+    } else {
+            RETURN_FALSE;
+    }
+    /*
     if(redisReplyReaderGetReply(reader,(void**)&reply) != REDIS_OK) {
             freeReplyObject(reply);
             RETURN_FALSE;
@@ -351,6 +371,7 @@ PHP_METHOD(Redis, set)
             freeReplyObject(reply);
             RETURN_TRUE;
     }
+    */
 }
 /* }}} */
 
@@ -362,7 +383,7 @@ PHP_METHOD(Redis, get)
     redisContext *redis_ctx;
     char *key = NULL;
     int key_len;
-    redisReply *reply;
+    zval *z_reply;
 
     if (zend_parse_method_parameters(ZEND_NUM_ARGS() TSRMLS_CC, getThis(), "Os",
                                      &object, redis_ce,
@@ -374,16 +395,20 @@ PHP_METHOD(Redis, get)
         RETURN_FALSE;
     }
 
-    reply = redisCommand(redis_ctx, "GET %b", key, key_len);
+    z_reply = redisCommand(redis_ctx, "GET %b", key, key_len);
 
-    if(!reply) {
+
+    if(!z_reply) {
             RETURN_FALSE;
     }
-    if(reply->type == REDIS_REPLY_STRING) {
-            ZVAL_STRINGL(return_value, reply->str, reply->len, 1);
-            freeReplyObject(reply);
+
+    if(Z_TYPE_P(z_reply) == IS_STRING) {
+            Z_TYPE_P(return_value) = IS_STRING;
+            Z_STRVAL_P(return_value) = Z_STRVAL_P(z_reply);
+            Z_STRLEN_P(return_value) = Z_STRLEN_P(z_reply);
+            efree(z_reply);
     } else {
-            freeReplyObject(reply);
+            efree(z_reply);
             RETURN_FALSE;
     }
 }
