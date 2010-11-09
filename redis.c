@@ -30,39 +30,39 @@
 #include <zend_exceptions.h>
 
 static int le_redis_sock;
-static zend_class_entry *redis_ce;
+static zend_class_entry *hiredis_ce;
 
-ZEND_DECLARE_MODULE_GLOBALS(redis)
+ZEND_DECLARE_MODULE_GLOBALS(hiredis)
 
-static zend_function_entry redis_functions[] = {
-     PHP_ME(Redis, __construct, NULL, ZEND_ACC_PUBLIC)
-     PHP_ME(Redis, connect, NULL, ZEND_ACC_PUBLIC)
-     PHP_ME(Redis, close, NULL, ZEND_ACC_PUBLIC)
-     PHP_ME(Redis, get, NULL, ZEND_ACC_PUBLIC)
-     PHP_ME(Redis, set, NULL, ZEND_ACC_PUBLIC)
+static zend_function_entry hiredis_functions[] = {
+     PHP_ME(HiRedis, __construct, NULL, ZEND_ACC_PUBLIC)
+     PHP_ME(HiRedis, connect, NULL, ZEND_ACC_PUBLIC)
+     PHP_ME(HiRedis, close, NULL, ZEND_ACC_PUBLIC)
+     PHP_ME(HiRedis, get, NULL, ZEND_ACC_PUBLIC)
+     PHP_ME(HiRedis, set, NULL, ZEND_ACC_PUBLIC)
 
      {NULL, NULL, NULL}
 };
 
-zend_module_entry redis_module_entry = {
+zend_module_entry hiredis_module_entry = {
 #if ZEND_MODULE_API_NO >= 20010901
      STANDARD_MODULE_HEADER,
 #endif
-     "redis",
+     "hiredis",
      NULL,
-     PHP_MINIT(redis),
-     PHP_MSHUTDOWN(redis),
-     PHP_RINIT(redis),
-     PHP_RSHUTDOWN(redis),
-     PHP_MINFO(redis),
+     PHP_MINIT(hiredis),
+     PHP_MSHUTDOWN(hiredis),
+     PHP_RINIT(hiredis),
+     PHP_RSHUTDOWN(hiredis),
+     PHP_MINFO(hiredis),
 #if ZEND_MODULE_API_NO >= 20010901
-     PHP_REDIS_VERSION,
+     PHP_HIREDIS_VERSION,
 #endif
      STANDARD_MODULE_PROPERTIES
 };
 
-#ifdef COMPILE_DL_REDIS
-ZEND_GET_MODULE(redis)
+#ifdef COMPILE_DL_HIREDIS
+ZEND_GET_MODULE(hiredis)
 #endif
 
 static void *tryParentize(const redisReadTask *task, zval *v) {
@@ -71,7 +71,7 @@ static void *tryParentize(const redisReadTask *task, zval *v) {
                 // php_printf("INSIDE\n");
                 zval *parent = (zval *)task->parent;
                 assert(Z_TYPE_P(parent) == IS_ARRAY);
-                /* rb_ary_store(parent,task->idx,v); */
+                add_index_zval(parent, task->idx, v);
         }
         return (void*)v;
 }
@@ -179,11 +179,11 @@ static void redis_destructor_redis_sock(zend_rsrc_list_entry * rsrc TSRMLS_DC)
 /**
  * PHP_MINIT_FUNCTION
  */
-PHP_MINIT_FUNCTION(redis)
+PHP_MINIT_FUNCTION(hiredis)
 {
-    zend_class_entry redis_class_entry;
-    INIT_CLASS_ENTRY(redis_class_entry, "HiRedis", redis_functions);
-    redis_ce = zend_register_internal_class(&redis_class_entry TSRMLS_CC);
+    zend_class_entry hiredis_class_entry;
+    INIT_CLASS_ENTRY(hiredis_class_entry, "HiRedis", hiredis_functions);
+    hiredis_ce = zend_register_internal_class(&hiredis_class_entry TSRMLS_CC);
 
     le_redis_sock = zend_register_list_destructors_ex(
         redis_destructor_redis_sock,
@@ -197,7 +197,7 @@ PHP_MINIT_FUNCTION(redis)
 /**
  * PHP_MSHUTDOWN_FUNCTION
  */
-PHP_MSHUTDOWN_FUNCTION(redis)
+PHP_MSHUTDOWN_FUNCTION(hiredis)
 {
     return SUCCESS;
 }
@@ -205,7 +205,7 @@ PHP_MSHUTDOWN_FUNCTION(redis)
 /**
  * PHP_RINIT_FUNCTION
  */
-PHP_RINIT_FUNCTION(redis)
+PHP_RINIT_FUNCTION(hiredis)
 {
     return SUCCESS;
 }
@@ -213,7 +213,7 @@ PHP_RINIT_FUNCTION(redis)
 /**
  * PHP_RSHUTDOWN_FUNCTION
  */
-PHP_RSHUTDOWN_FUNCTION(redis)
+PHP_RSHUTDOWN_FUNCTION(hiredis)
 {
     return SUCCESS;
 }
@@ -221,17 +221,17 @@ PHP_RSHUTDOWN_FUNCTION(redis)
 /**
  * PHP_MINFO_FUNCTION
  */
-PHP_MINFO_FUNCTION(redis)
+PHP_MINFO_FUNCTION(hiredis)
 {
     php_info_print_table_start();
-    php_info_print_table_header(2, "Redis Support", "enabled");
-    php_info_print_table_row(2, "Version", PHP_REDIS_VERSION);
+    php_info_print_table_header(2, "HiRedis Support", "enabled");
+    php_info_print_table_row(2, "Version", PHP_HIREDIS_VERSION);
     php_info_print_table_end();
 }
 
-/* {{{ proto Redis Redis::__construct()
+/* {{{ proto HiRedis HiRedis::__construct()
     Public constructor */
-PHP_METHOD(Redis, __construct)
+PHP_METHOD(HiRedis, __construct)
 {
     if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "") == FAILURE) {
         RETURN_FALSE;
@@ -265,9 +265,9 @@ PHPAPI int redis_sock_get(zval *id, redisContext **redis_ctx TSRMLS_DC)
     return Z_LVAL_PP(socket);
 }
 
-/* {{{ proto boolean Redis::connect(string host, int port [, int timeout])
+/* {{{ proto boolean HiRedis::connect(string host, int port [, int timeout])
  */
-PHP_METHOD(Redis, connect)
+PHP_METHOD(HiRedis, connect)
 {
     zval *object;
     int host_len, id;
@@ -278,7 +278,7 @@ PHP_METHOD(Redis, connect)
     redisContext *redis_ctx  = NULL;
 
     if (zend_parse_method_parameters(ZEND_NUM_ARGS() TSRMLS_CC, getThis(), "Os|ll",
-                                     &object, redis_ce, &host, &host_len, &port,
+                                     &object, hiredis_ce, &host, &host_len, &port,
                                      &timeout.tv_sec) == FAILURE) {
        RETURN_FALSE;
     }
@@ -304,15 +304,15 @@ PHP_METHOD(Redis, connect)
 }
 /* }}} */
 
-/* {{{ proto boolean Redis::close()
+/* {{{ proto boolean HiRedis::close()
  */
-PHP_METHOD(Redis, close)
+PHP_METHOD(HiRedis, close)
 {
     zval *object;
     redisContext *redis_ctx = NULL;
 
     if (zend_parse_method_parameters(ZEND_NUM_ARGS() TSRMLS_CC, getThis(), "O",
-        &object, redis_ce) == FAILURE) {
+        &object, hiredis_ce) == FAILURE) {
         RETURN_FALSE;
     }
     if (redis_sock_get(object, &redis_ctx TSRMLS_CC) < 0) {
@@ -328,9 +328,9 @@ PHP_METHOD(Redis, close)
 /* }}} */
 
 
-/* {{{ proto boolean Redis::set(string key, string value)
+/* {{{ proto boolean HiRedis::set(string key, string value)
  */
-PHP_METHOD(Redis, set)
+PHP_METHOD(HiRedis, set)
 {
     zval *object;
     redisContext *redis_ctx;
@@ -340,7 +340,7 @@ PHP_METHOD(Redis, set)
     zval *z_reply;
 
     if (zend_parse_method_parameters(ZEND_NUM_ARGS() TSRMLS_CC, getThis(), "Oss",
-                                     &object, redis_ce, &key, &key_len,
+                                     &object, hiredis_ce, &key, &key_len,
                                      &val, &val_len) == FAILURE) {
         RETURN_FALSE;
     }
@@ -375,9 +375,9 @@ PHP_METHOD(Redis, set)
 }
 /* }}} */
 
-/* {{{ proto string Redis::get(string key)
+/* {{{ proto string HiRedis::get(string key)
  */
-PHP_METHOD(Redis, get)
+PHP_METHOD(HiRedis, get)
 {
     zval *object;
     redisContext *redis_ctx;
@@ -386,7 +386,7 @@ PHP_METHOD(Redis, get)
     zval *z_reply;
 
     if (zend_parse_method_parameters(ZEND_NUM_ARGS() TSRMLS_CC, getThis(), "Os",
-                                     &object, redis_ce,
+                                     &object, hiredis_ce,
                                      &key, &key_len) == FAILURE) {
         RETURN_FALSE;
     }

@@ -23,12 +23,13 @@
 
 #include "hiredis/hiredis.h"
 
-PHP_METHOD(Redis, __construct);
-PHP_METHOD(Redis, connect);
-PHP_METHOD(Redis, close);
-PHP_METHOD(Redis, ping);
-PHP_METHOD(Redis, get);
-PHP_METHOD(Redis, set);
+PHP_METHOD(HiRedis, __construct);
+PHP_METHOD(HiRedis, connect);
+PHP_METHOD(HiRedis, close);
+PHP_METHOD(HiRedis, ping);
+PHP_METHOD(HiRedis, get);
+PHP_METHOD(HiRedis, set);
+/*
 PHP_METHOD(Redis, setnx);
 PHP_METHOD(Redis, getSet);
 PHP_METHOD(Redis, randomKey);
@@ -105,6 +106,7 @@ PHP_METHOD(Redis, hVals);
 PHP_METHOD(Redis, hGetAll);
 PHP_METHOD(Redis, hExists);
 PHP_METHOD(Redis, hIncrBy);
+*/
 
 #ifdef PHP_WIN32
 #define PHP_REDIS_API __declspec(dllexport)
@@ -116,11 +118,11 @@ PHP_METHOD(Redis, hIncrBy);
 #include "TSRM.h"
 #endif
 
-PHP_MINIT_FUNCTION(redis);
-PHP_MSHUTDOWN_FUNCTION(redis);
-PHP_RINIT_FUNCTION(redis);
-PHP_RSHUTDOWN_FUNCTION(redis);
-PHP_MINFO_FUNCTION(redis);
+PHP_MINIT_FUNCTION(hiredis);
+PHP_MSHUTDOWN_FUNCTION(hiredis);
+PHP_RINIT_FUNCTION(hiredis);
+PHP_RSHUTDOWN_FUNCTION(hiredis);
+PHP_MINFO_FUNCTION(hiredis);
 
 /* {{{ struct RedisSock */
 typedef struct RedisSock_ {
@@ -178,8 +180,8 @@ PHPAPI void array_zip_values_and_scores(INTERNAL_FUNCTION_PARAMETERS, int use_at
 
 /* }}} */
 
-ZEND_BEGIN_MODULE_GLOBALS(redis)
-ZEND_END_MODULE_GLOBALS(redis)
+ZEND_BEGIN_MODULE_GLOBALS(hiredis)
+ZEND_END_MODULE_GLOBALS(hiredis)
 
 	/*
 #ifdef ZTS
@@ -189,7 +191,7 @@ ZEND_END_MODULE_GLOBALS(redis)
 #endif
 */
 
-#define PHP_REDIS_VERSION "0.1"
+#define PHP_HIREDIS_VERSION "0.1"
 
 #endif
 

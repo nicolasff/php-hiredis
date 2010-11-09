@@ -1,9 +1,9 @@
 dnl $Id$
 dnl config.m4 for extension redis
 
-PHP_ARG_ENABLE(redis, whether to enable redis support,
+PHP_ARG_ENABLE(hiredis, whether to enable redis support,
 dnl Make sure that the comment is aligned:
-[  --enable-redis           Enable redis support])
+[  --enable-hiredis           Enable redis support])
 
 if test "$PHP_REDIS" != "no"; then
 
@@ -46,5 +46,5 @@ if test "$PHP_REDIS" != "no"; then
   dnl
   dnl PHP_SUBST(REDIS_SHARED_LIBADD)
 
-  PHP_NEW_EXTENSION(redis, redis.c hiredis/hiredis.c hiredis/sds.c hiredis/net.c, $ext_shared)
+  PHP_NEW_EXTENSION(hiredis, redis.c hiredis/hiredis.c hiredis/sds.c hiredis/net.c, $ext_shared)
 fi
