@@ -2,7 +2,8 @@
 
 function test($className) {
 	$r = new $className;
-	var_dump($r->connect('127.0.0.1', 6379));
+	$c = $r->connect('127.0.0.1', 6379);
+	printf("[%s] Connection: %s\n", $className, $c?"OK":"FAILURE");
 
 	$count = 100000;
 
