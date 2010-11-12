@@ -182,6 +182,10 @@ PHPAPI void array_zip_values_and_scores(INTERNAL_FUNCTION_PARAMETERS, int use_at
 
 /* }}} */
 
+/* new readers */
+PHPAPI int redis_reply_string(INTERNAL_FUNCTION_PARAMETERS, zval *z_reply);
+PHPAPI int redis_reply_status(INTERNAL_FUNCTION_PARAMETERS, zval *z_reply);
+
 ZEND_BEGIN_MODULE_GLOBALS(hiredis)
 ZEND_END_MODULE_GLOBALS(hiredis)
 

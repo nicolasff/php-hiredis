@@ -27,6 +27,7 @@
 #include "php_ini.h"
 #include "ext/standard/info.h"
 #include "php_redis.h"
+#include "macros.h"
 
 #ifdef __linux__
 /* setsockopt */
@@ -345,9 +346,7 @@ PHP_METHOD(HiRedis, set)
     zval *object;
     RedisSock *redis_sock;
     char *key = NULL, *val = NULL;
-    int key_len, val_len, success = 0;
-
-    zval *z_reply;
+    int key_len, val_len;
 
     if (zend_parse_method_parameters(ZEND_NUM_ARGS() TSRMLS_CC, getThis(), "Oss",
                                      &object, hiredis_ce, &key, &key_len,
@@ -355,45 +354,8 @@ PHP_METHOD(HiRedis, set)
         RETURN_FALSE;
     }
 
-    if (redis_sock_get(object, &redis_sock TSRMLS_CC) < 0) {
-        RETURN_FALSE;
-    }
-
-    switch(redis_sock->mode) {
-            case REDIS_MODE_PIPELINE:
-                    redisAppendCommand(redis_sock->ctx, "SET %b %b", key, key_len, val, val_len);
-                    redis_sock->enqueued_commands++;
-                    RETURN_ZVAL(object, 1, 0);
-                    break;
-
-            case REDIS_MODE_TRANSACTION:
-                    z_reply = redisCommand(redis_sock->ctx, "SET %b %b", key, key_len, val, val_len);
-                    if(Z_TYPE_P(z_reply) == IS_BOOL && Z_BVAL_P(z_reply) == 1) {
-                            redis_sock->enqueued_commands++;
-                            efree(z_reply);
-                            RETURN_ZVAL(object, 1, 0);
-                    } else {
-                            efree(z_reply);
-                            RETURN_FALSE;
-                    }
-                    break;
-
-            case REDIS_MODE_BLOCKING:
-                    z_reply = redisCommand(redis_sock->ctx, "SET %b %b", key, key_len, val, val_len);
-                    if(z_reply && Z_TYPE_P(z_reply) == IS_STRING && strncmp(Z_STRVAL_P(z_reply), "OK", 2) == 0) {
-                            success = 1;
-                    }
-    
-                    zval_dtor(z_reply);
-                    efree(z_reply);
-
-                    if(success) {
-                            RETURN_TRUE;
-                    } else {
-                            RETURN_FALSE;
-                    }
-                    break;
-    }
+    REDIS_SOCK_GET(redis_sock);
+    REDIS_RUN(redis_sock, redis_reply_status, "SET %b %b", key, key_len, val, val_len);
 }
 /* }}} */
 
@@ -405,7 +367,6 @@ PHP_METHOD(HiRedis, get)
     RedisSock *redis_sock;
     char *key = NULL;
     int key_len;
-    zval *z_reply;
 
     if (zend_parse_method_parameters(ZEND_NUM_ARGS() TSRMLS_CC, getThis(), "Os",
                                      &object, hiredis_ce,
@@ -413,44 +374,44 @@ PHP_METHOD(HiRedis, get)
         RETURN_FALSE;
     }
 
-    if (redis_sock_get(object, &redis_sock TSRMLS_CC) < 0) {
-        RETURN_FALSE;
-    }
-
-    switch(redis_sock->mode) {
-            case REDIS_MODE_PIPELINE:
-                    redisAppendCommand(redis_sock->ctx, "GET %b", key, key_len);
-                    redis_sock->enqueued_commands++;
-                    RETURN_ZVAL(object, 1, 0);
-                    break;
-
-            case REDIS_MODE_TRANSACTION:
-                    z_reply = redisCommand(redis_sock->ctx, "GET %b", key, key_len);
-                    if(Z_TYPE_P(z_reply) == IS_BOOL && Z_BVAL_P(z_reply) == 1) {
-                            redis_sock->enqueued_commands++;
-                            efree(z_reply);
-                            RETURN_ZVAL(object, 1, 0);
-                    } else {
-                            efree(z_reply);
-                            RETURN_FALSE;
-                    }
-                    break;
-
-            case REDIS_MODE_BLOCKING:
-                    z_reply = redisCommand(redis_sock->ctx, "GET %b", key, key_len);
-                    if(Z_TYPE_P(z_reply) == IS_STRING) {
-                            Z_TYPE_P(return_value) = IS_STRING;
-                            Z_STRVAL_P(return_value) = Z_STRVAL_P(z_reply);
-                            Z_STRLEN_P(return_value) = Z_STRLEN_P(z_reply);
-                            efree(z_reply);
-                    } else {
-                            zval_dtor(z_reply);
-                            efree(z_reply);
-                            RETURN_FALSE;
-                    }
-    }
+    REDIS_SOCK_GET(redis_sock);
+    REDIS_RUN(redis_sock, redis_reply_string, "GET %b", key, key_len);
 }
 /* }}} */
+
+PHPAPI int
+redis_reply_string(INTERNAL_FUNCTION_PARAMETERS, zval *z_reply) {
+    if(Z_TYPE_P(z_reply) == IS_STRING) {
+            Z_TYPE_P(return_value) = IS_STRING;
+            Z_STRVAL_P(return_value) = Z_STRVAL_P(z_reply);
+            Z_STRLEN_P(return_value) = Z_STRLEN_P(z_reply);
+            efree(z_reply);
+            return 0;
+    } else {
+            zval_dtor(z_reply);
+            efree(z_reply);
+            ZVAL_BOOL(return_value, 0);
+            return 1;
+    }
+}
+
+PHPAPI int
+redis_reply_status(INTERNAL_FUNCTION_PARAMETERS, zval *z_reply) {
+        int success = 0;
+        if(z_reply && Z_TYPE_P(z_reply) == IS_STRING && strncmp(Z_STRVAL_P(z_reply), "OK", 2) == 0) {
+                success = 1;
+        }
+
+        zval_dtor(z_reply);
+        efree(z_reply);
+
+        if(success) {
+                ZVAL_BOOL(return_value, 1);
+        } else {
+                ZVAL_BOOL(return_value, 0);
+        }
+        return 0;
+}
 
 PHP_METHOD(HiRedis, delete)
 {

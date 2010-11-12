@@ -48,6 +48,7 @@ function test($className) {
 	printf("[%s] %d MULTI/SET/GET/EXEC: %0.2f sec (%d/sec)\n", $className, $count, $t4-$t3, ($count)/($t4-$t3));
 
 	$r->close();
+	printf("\n");
 }
 
 test("Redis");
