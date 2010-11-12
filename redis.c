@@ -515,13 +515,9 @@ PHP_METHOD(HiRedis, exec)
 
             case REDIS_MODE_TRANSACTION:
                     z_reply = redisCommand(redis_sock->ctx, "EXEC");
-                    *return_value = *z_reply;
-                    zval_copy_ctor(return_value);
-                    /*
                     Z_TYPE_P(return_value) = IS_ARRAY;
                     Z_ARRVAL_P(return_value) = Z_ARRVAL_P(z_reply);
-                    */
-                    // efree(z_reply);
+                    efree(z_reply);
                     return;
 
             case REDIS_MODE_PIPELINE:
