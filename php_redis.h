@@ -30,6 +30,7 @@ PHP_METHOD(HiRedis, ping);
 PHP_METHOD(HiRedis, get);
 PHP_METHOD(HiRedis, set);
 PHP_METHOD(HiRedis, pipeline);
+PHP_METHOD(HiRedis, multi);
 PHP_METHOD(HiRedis, exec);
 /*
 PHP_METHOD(Redis, setnx);
