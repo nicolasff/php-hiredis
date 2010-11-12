@@ -10,14 +10,16 @@ function test($className) {
 	// SET
 	$t0 = microtime(true);
 	for($i = 0; $i < $count; $i++) {
-		$r->set('key', 'value');
+		$ret = $r->set('key', 'value');
+		assert($ret === true);
 	}
 	$t1 = microtime(true);
 	printf("[%s] %d sets: %0.2f sec (%d/sec)\n", $className, $count, $t1-$t0, ($count)/($t1-$t0));
 
 	// GET
 	for($i = 0; $i < $count; $i++) {
-		$r->get('key');
+		$ret = $r->get('key');
+		assert($ret === 'value');
 	}
 	$t2 = microtime(true);
 
@@ -27,10 +29,11 @@ function test($className) {
 	printf("[%s] Testing pipelining support, SET followed by GET.\n", $className);
 
 	for($i = 0; $i < $count; $i++) {
-		$r->pipeline()
+		$ret = $r->pipeline()
 			->set('key', 'value')
 			->get('key')
 			->exec();
+		assert($ret === array(true, 'value'));
 	}
 	$t3 = microtime(true);
 
@@ -42,10 +45,31 @@ function test($className) {
 			->set('key', 'value')
 			->get('key')
 			->exec();
+		assert($ret === array(true, 'value'));
 	}
 
 	$t4 = microtime(true);
 	printf("[%s] %d MULTI/SET/GET/EXEC: %0.2f sec (%d/sec)\n", $className, $count, $t4-$t3, ($count)/($t4-$t3));
+
+	$ret = $r->delete('key');
+
+	for($i = 0; $i < $count; $i++) {
+		$ret = $r->incr('key');
+		assert($ret === $i + 1);
+	}
+	$t5 = microtime(true);
+
+	printf("[%s] %d INCR: %0.2f sec (%d/sec)\n", $className, $count, $t5-$t4, ($count)/($t5-$t4));
+
+	$ret = $r->delete('key');
+
+	for($i = 0; $i < $count; $i++) {
+		$ret = $r->decr('key');
+		assert($ret === -$i - 1);
+	}
+	$t6 = microtime(true);
+
+	printf("[%s] %d DECR: %0.2f sec (%d/sec)\n", $className, $count, $t6-$t5, ($count)/($t6-$t5));
 
 	$r->close();
 	printf("\n");

@@ -33,6 +33,8 @@ PHP_METHOD(HiRedis, delete);
 PHP_METHOD(HiRedis, pipeline);
 PHP_METHOD(HiRedis, multi);
 PHP_METHOD(HiRedis, exec);
+PHP_METHOD(HiRedis, incr);
+PHP_METHOD(HiRedis, decr);
 /*
 PHP_METHOD(Redis, setnx);
 PHP_METHOD(Redis, getSet);
@@ -41,7 +43,6 @@ PHP_METHOD(Redis, renameKey);
 PHP_METHOD(Redis, renameNx);
 PHP_METHOD(Redis, getMultiple);
 PHP_METHOD(Redis, exists);
-PHP_METHOD(Redis, incr);
 PHP_METHOD(Redis, decr);
 PHP_METHOD(Redis, type);
 PHP_METHOD(Redis, getKeys);
@@ -185,6 +186,7 @@ PHPAPI void array_zip_values_and_scores(INTERNAL_FUNCTION_PARAMETERS, int use_at
 /* new readers */
 PHPAPI int redis_reply_string(INTERNAL_FUNCTION_PARAMETERS, zval *z_reply);
 PHPAPI int redis_reply_status(INTERNAL_FUNCTION_PARAMETERS, zval *z_reply);
+PHPAPI int redis_reply_long(INTERNAL_FUNCTION_PARAMETERS, zval *z_reply);
 
 ZEND_BEGIN_MODULE_GLOBALS(hiredis)
 ZEND_END_MODULE_GLOBALS(hiredis)

@@ -55,6 +55,8 @@ static zend_function_entry hiredis_functions[] = {
      PHP_ME(HiRedis, pipeline, NULL, ZEND_ACC_PUBLIC)
      PHP_ME(HiRedis, multi, NULL, ZEND_ACC_PUBLIC)
      PHP_ME(HiRedis, exec, NULL, ZEND_ACC_PUBLIC)
+     PHP_ME(HiRedis, incr, NULL, ZEND_ACC_PUBLIC)
+     PHP_ME(HiRedis, decr, NULL, ZEND_ACC_PUBLIC)
 
      {NULL, NULL, NULL}
 };
@@ -379,6 +381,47 @@ PHP_METHOD(HiRedis, get)
 }
 /* }}} */
 
+/* {{{ proto long HiRedis::incr(long key)
+ */
+PHP_METHOD(HiRedis, incr)
+{
+    zval *object;
+    RedisSock *redis_sock;
+    char *key = NULL;
+    int key_len;
+
+    if (zend_parse_method_parameters(ZEND_NUM_ARGS() TSRMLS_CC, getThis(), "Os",
+                                     &object, hiredis_ce,
+                                     &key, &key_len) == FAILURE) {
+        RETURN_FALSE;
+    }
+
+    REDIS_SOCK_GET(redis_sock);
+    REDIS_RUN(redis_sock, redis_reply_long, "INCR %b", key, key_len);
+}
+/* }}} */
+
+/* {{{ proto long HiRedis::decr(long key)
+ */
+PHP_METHOD(HiRedis, decr)
+{
+    zval *object;
+    RedisSock *redis_sock;
+    char *key = NULL;
+    int key_len;
+
+    if (zend_parse_method_parameters(ZEND_NUM_ARGS() TSRMLS_CC, getThis(), "Os",
+                                     &object, hiredis_ce,
+                                     &key, &key_len) == FAILURE) {
+        RETURN_FALSE;
+    }
+
+    REDIS_SOCK_GET(redis_sock);
+    REDIS_RUN(redis_sock, redis_reply_long, "DECR %b", key, key_len);
+}
+/* }}} */
+
+
 PHPAPI int
 redis_reply_string(INTERNAL_FUNCTION_PARAMETERS, zval *z_reply) {
     if(Z_TYPE_P(z_reply) == IS_STRING) {
@@ -395,11 +438,26 @@ redis_reply_string(INTERNAL_FUNCTION_PARAMETERS, zval *z_reply) {
     }
 }
 
+
+PHPAPI int
+redis_reply_long(INTERNAL_FUNCTION_PARAMETERS, zval *z_reply) {
+    if(Z_TYPE_P(z_reply) == IS_LONG) {
+            ZVAL_LONG(return_value, Z_LVAL_P(z_reply));
+            efree(z_reply);
+            return 0;
+    } else {
+            zval_dtor(z_reply);
+            efree(z_reply);
+            ZVAL_BOOL(return_value, 0);
+            return 1;
+    }
+}
+
 PHPAPI int
 redis_reply_status(INTERNAL_FUNCTION_PARAMETERS, zval *z_reply) {
         int success = 0;
-        if(z_reply && Z_TYPE_P(z_reply) == IS_STRING && strncmp(Z_STRVAL_P(z_reply), "OK", 2) == 0) {
-                success = 1;
+        if(z_reply && Z_TYPE_P(z_reply) == IS_BOOL) {
+                success = Z_BVAL_P(z_reply);
         }
 
         zval_dtor(z_reply);
