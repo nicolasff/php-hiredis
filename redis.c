@@ -27,6 +27,15 @@
 #include "php_ini.h"
 #include "ext/standard/info.h"
 #include "php_redis.h"
+
+#ifdef __linux__
+/* setsockopt */
+#include <sys/types.h>
+#include <netinet/tcp.h>  /* TCP_NODELAY */
+#include <sys/socket.h>
+#include <netinet/in.h>
+#endif
+
 #include <zend_exceptions.h>
 
 
@@ -84,7 +93,12 @@ static void *createStringObject(const redisReadTask *task, char *str, size_t len
         // php_printf("CALLBACK: %s\n", __FUNCTION__);
         zval *z_ret;
         MAKE_STD_ZVAL(z_ret);
-        ZVAL_STRINGL(z_ret, str, len, 1);
+
+        if (task->type == REDIS_REPLY_ERROR) {
+                ZVAL_BOOL(z_ret, 0);
+        } else {
+                ZVAL_STRINGL(z_ret, str, len, 1);
+        }
         // php_printf("created string object (%zd)[%s], z_ret=%p\n", len, str, z_ret);
 
 #if 0
@@ -293,6 +307,11 @@ PHP_METHOD(HiRedis, connect)
             printf("Error: %s\n", redis_sock->ctx->errstr);
             RETURN_FALSE;
     }
+
+#ifdef __linux__
+    int tcp_flag = 1;
+    int result = setsockopt(redis_sock->ctx->fd, IPPROTO_TCP, TCP_NODELAY, (char *) &tcp_flag, sizeof(int));
+#endif
 
     redis_sock->mode = REDIS_MODE_BLOCKING;
 

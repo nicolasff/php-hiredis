@@ -5,7 +5,7 @@ function test($className) {
 	$c = $r->connect('127.0.0.1', 6379);
 	printf("[%s] Connection: %s\n", $className, $c?"OK":"FAILURE");
 
-	$count = 100000;
+	$count = 50000;
 
 	$t0 = microtime(true);
 	for($i = 0; $i < $count; $i++) {
