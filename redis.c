@@ -59,6 +59,7 @@ static zend_function_entry hiredis_functions[] = {
      PHP_ME(HiRedis, decr, NULL, ZEND_ACC_PUBLIC)
      PHP_ME(HiRedis, hset, NULL, ZEND_ACC_PUBLIC)
      PHP_ME(HiRedis, hgetall, NULL, ZEND_ACC_PUBLIC)
+     PHP_ME(HiRedis, hmget, NULL, ZEND_ACC_PUBLIC)
 
      {NULL, NULL, NULL}
 };
@@ -425,7 +426,7 @@ PHP_METHOD(HiRedis, decr)
 
 
 PHPAPI int
-redis_reply_string(zval *return_value, redis_mode mode, zval *z_reply) {
+redis_reply_string(zval *return_value, redis_mode mode, zval *z_reply, zval **z_args) {
 
     if(Z_TYPE_P(z_reply) == IS_STRING) { /* valid */
 	    if(mode == REDIS_MODE_BLOCKING) { /* copy directly into return_value */
@@ -451,7 +452,7 @@ redis_reply_string(zval *return_value, redis_mode mode, zval *z_reply) {
 
 
 PHPAPI int
-redis_reply_long(zval *return_value, redis_mode mode, zval *z_reply) {
+redis_reply_long(zval *return_value, redis_mode mode, zval *z_reply, zval **z_args) {
     if(Z_TYPE_P(z_reply) == IS_LONG) { /* valid */
 	    if(mode == REDIS_MODE_BLOCKING) { /* copy directly into return_value */
 		    ZVAL_LONG(return_value, Z_LVAL_P(z_reply));
@@ -473,7 +474,7 @@ redis_reply_long(zval *return_value, redis_mode mode, zval *z_reply) {
 }
 
 PHPAPI int
-redis_reply_status(zval *return_value, redis_mode mode, zval *z_reply) {
+redis_reply_status(zval *return_value, redis_mode mode, zval *z_reply, zval **z_args) {
         int success = 0;
         if(z_reply && Z_TYPE_P(z_reply) == IS_BOOL) {
                 success = Z_BVAL_P(z_reply);
@@ -491,7 +492,7 @@ redis_reply_status(zval *return_value, redis_mode mode, zval *z_reply) {
 }
 
 PHPAPI int
-redis_reply_zip(zval *return_value, redis_mode mode, zval *z_reply) {
+redis_reply_zip(zval *return_value, redis_mode mode, zval *z_reply, zval **z_args) {
 
         zval *z_ret;
         MAKE_STD_ZVAL(z_ret);
@@ -557,92 +558,69 @@ redis_reply_zip(zval *return_value, redis_mode mode, zval *z_reply) {
         return 0;
 }
 
+PHPAPI int
+redis_reply_zip_closure(zval *return_value, redis_mode mode, zval *z_reply, zval **z_args) {
 
-void redis_enqueue(RedisSock *redis_sock, void *fun) {
+	int i;
+
+        zval *z_ret;
+        MAKE_STD_ZVAL(z_ret);
+
+        if(Z_TYPE_P(z_reply) != IS_ARRAY) {
+                ZVAL_NULL(z_ret);
+        } else {
+            array_init(z_ret);
+
+            HashTable *ht_vals = Z_ARRVAL_P(z_reply);
+
+	    /* zip together z_args as keys, z_reply as values */
+
+            for(i = 1, zend_hash_internal_pointer_reset(ht_vals);
+                            zend_hash_has_more_elements(ht_vals) == SUCCESS;
+                            i++, zend_hash_move_forward(ht_vals)) {
+
+                    zval **z_val_pp;
+
+                    if(zend_hash_get_current_data(ht_vals, (void**)&z_val_pp) == FAILURE) {
+                            continue; 	/* this should never happen, according to the PHP people. */
+                    }
+
+                    add_assoc_stringl_ex(z_ret, Z_STRVAL_P(z_args[i]), 1+Z_STRLEN_P(z_args[i]), Z_STRVAL_PP(z_val_pp), Z_STRLEN_PP(z_val_pp), 1);
+            }
+        }
+
+	if(mode == REDIS_MODE_BLOCKING) { /* copy z_ret into return_value directly */
+		*return_value = *z_ret;
+		zval_copy_ctor(return_value);
+		zval_dtor(z_ret);
+		efree(z_ret);
+	} else { /* append z_ret to return_value array */
+		add_next_index_zval(return_value, z_ret);
+	}
+
+	efree(z_args);
+
+        return 0;
+}
+
+void redis_enqueue(RedisSock *redis_sock, void *fun, zval **z_args) {
 
 	redis_command *c = ecalloc(1, sizeof(redis_command));
 	c->fun = fun;
+
+	if(z_args) {
+		c->z_args = z_args;
+	}
 
 	/* enqueue */
 	if(redis_sock->queue_tail == NULL) {
 		redis_sock->queue_tail = redis_sock->queue_head = c;
 	} else {
 		redis_sock->queue_tail->next = c;
-	} 
+	}
 	redis_sock->enqueued_commands++;
 }
 
-
-PHP_METHOD(HiRedis, delete)
-{
-    zval *object = getThis();
-    RedisSock *redis_sock;
-    int argc = ZEND_NUM_ARGS(), i;
-
-    const char **args;
-    size_t *arglen;
-
-    zval *z_reply;
-
-    /* get all args into the zval array z_args */
-    zval **z_args = emalloc(argc * sizeof(zval*));
-    if(zend_get_parameters_array(ht, argc, z_args) == FAILURE) {
-        efree(z_args);
-        RETURN_FALSE;
-    }
-
-    /* get socket */
-    if (redis_sock_get(object, &redis_sock TSRMLS_CC) < 0) {
-        RETURN_FALSE;
-    }
-
-    /* copy all args as strings */
-    args = emalloc((argc+1) * sizeof(char*));
-    arglen = emalloc((argc+1) * sizeof(size_t));
-    for(i = 0; i < argc; ++i) {
-        convert_to_string(z_args[i]);
-        args[i+1] = Z_STRVAL_P(z_args[i]);
-        arglen[i+1] = (size_t)Z_STRLEN_P(z_args[i]);
-    }
-
-    args[0] = "DEL";
-    arglen[0] = 3;
-
-    switch(redis_sock->mode) {
-            case REDIS_MODE_PIPELINE:
-                    redisAppendCommandArgv(redis_sock->ctx, argc+1, args, arglen);
-                    efree(args); efree(arglen);
-                    redis_sock->enqueued_commands++;
-                    RETURN_ZVAL(object, 1, 0);
-                    break;
-
-            case REDIS_MODE_TRANSACTION:
-                    z_reply = redisCommandArgv(redis_sock->ctx, argc+1, args, arglen);
-                    efree(args); efree(arglen);
-                    if(Z_TYPE_P(z_reply) == IS_BOOL && Z_BVAL_P(z_reply) == 1) {
-                            redis_sock->enqueued_commands++;
-                            efree(z_reply);
-                            RETURN_ZVAL(object, 1, 0);
-                    } else {
-                            efree(z_reply);
-                            RETURN_FALSE;
-                    }
-                    break;
-
-            case REDIS_MODE_BLOCKING:
-                    z_reply = redisCommandArgv(redis_sock->ctx, argc+1, args, arglen);
-                    efree(args); efree(arglen);
-                    if(Z_TYPE_P(z_reply) == IS_LONG) {
-                            Z_TYPE_P(return_value) = IS_LONG;
-                            Z_LVAL_P(return_value) = Z_LVAL_P(z_reply);
-                            efree(z_reply);
-                    } else {
-                            zval_dtor(z_reply);
-                            efree(z_reply);
-                            RETURN_FALSE;
-                    }
-    }
-}
 
 PHP_METHOD(HiRedis, pipeline)
 {
@@ -740,7 +718,7 @@ PHP_METHOD(HiRedis, exec)
 	    zval **z_value_pp;
 	    zend_hash_get_current_data(raw_ht, (void**)&z_value_pp);
 
-	c->fun(return_value, mode, *z_value_pp);
+	c->fun(return_value, mode, *z_value_pp, c->z_args);
     }
 }
 
@@ -786,5 +764,57 @@ PHP_METHOD(HiRedis, hgetall)
     REDIS_RUN(redis_sock, redis_reply_zip, "HGETALL %b", key, (size_t)key_len);
 }
 /* }}} */
+
+/* {{{ proto array HiRedis::hmget(string key, array fields)
+ */
+PHP_METHOD(HiRedis, hmget) {
+	redis_varg_run(INTERNAL_FUNCTION_PARAM_PASSTHRU, "HMGET", redis_reply_zip_closure, 1);
+}
+
+
+PHP_METHOD(HiRedis, delete) {
+
+	redis_varg_run(INTERNAL_FUNCTION_PARAM_PASSTHRU, "DEL", redis_reply_long, 0);
+}
+
+PHPAPI void
+redis_varg_run(INTERNAL_FUNCTION_PARAMETERS, char *keyword, void *fun, int keep_args) {
+
+
+    zval *object = getThis();
+    RedisSock *redis_sock;
+    int argc = ZEND_NUM_ARGS(), i;
+
+    const char **args;
+    size_t *arglen;
+
+    zval *z_reply;
+
+    /* get all args into the zval array z_args */
+    zval **z_args = emalloc(argc * sizeof(zval*));
+    if(zend_get_parameters_array(ht, argc, z_args) == FAILURE) {
+        efree(z_args);
+        RETURN_FALSE;
+    }
+
+    /* copy all args as strings */
+    args = emalloc((argc+1) * sizeof(char*));
+    arglen = emalloc((argc+1) * sizeof(size_t));
+    for(i = 0; i < argc; ++i) {
+        convert_to_string(z_args[i]);
+        args[i+1] = Z_STRVAL_P(z_args[i]);
+        arglen[i+1] = (size_t)Z_STRLEN_P(z_args[i]);
+    }
+
+    args[0] = keyword;
+    arglen[0] = strlen(keyword);
+
+    REDIS_SOCK_GET(redis_sock);
+    if(keep_args) {
+	    REDIS_RUN_ARGS(redis_sock, fun, argc+1, args, arglen, z_args);
+    } else {
+	    REDIS_RUN_ARGS(redis_sock, fun, argc+1, args, arglen, NULL);
+    }
+}
 
 /* vim: set tabstop=8 expandtab: */

@@ -6,7 +6,7 @@ function test($className) {
 	$c = $r->connect('127.0.0.1', 6379);
 	printf("[%s] Connection: %s\n", $className, $c?"OK":"FAILURE");
 
-	$count = 10000;
+	$count = 100;
 
 	// SET
 	$t0 = microtime(true);
@@ -53,6 +53,11 @@ function test($className) {
 	printf("[%s] %d MULTI/SET/GET/EXEC: %0.2f sec (%d/sec)\n", $className, $count, $t4-$t3, ($count)/($t4-$t3));
 
 	$ret = $r->delete('key');
+	assert($ret === 1);
+	$r->set('x', 'a');
+	$r->set('y', 'b');
+	$ret = $r->delete('x', 'y');
+	assert($ret === 2);
 
 	for($i = 0; $i < $count; $i++) {
 		$ret = $r->incr('key');
@@ -80,6 +85,12 @@ function test($className) {
 
 	$tab = $r->hgetall('h');
 	assert($tab === array('a' => 'x', 'b' => 'y', 'c' => 'z'));
+
+	if($className === 'HiRedis') {
+		$tab = $r->hmget('h', 'a', 'b');
+		echo "HMGET:"; var_dump($tab);
+		assert($tab === array('a' => 'x', 'b' => 'y'));
+	}
 
 	$tab = $r->multi()
 		->hset('h', 'a', 'plop')
