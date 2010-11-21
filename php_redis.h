@@ -36,6 +36,7 @@ PHP_METHOD(HiRedis, exec);
 PHP_METHOD(HiRedis, incr);
 PHP_METHOD(HiRedis, decr);
 PHP_METHOD(HiRedis, hset);
+PHP_METHOD(HiRedis, hgetall);
 /*
 PHP_METHOD(Redis, setnx);
 PHP_METHOD(Redis, getSet);
@@ -102,13 +103,11 @@ PHP_METHOD(Redis, expireAt);
 PHP_METHOD(Redis, mset);
 PHP_METHOD(Redis, rpoplpush);
 
-PHP_METHOD(Redis, hGet);
 PHP_METHOD(Redis, hSet);
 PHP_METHOD(Redis, hDel);
 PHP_METHOD(Redis, hLen);
 PHP_METHOD(Redis, hKeys);
 PHP_METHOD(Redis, hVals);
-PHP_METHOD(Redis, hGetAll);
 PHP_METHOD(Redis, hExists);
 PHP_METHOD(Redis, hIncrBy);
 */
@@ -131,13 +130,23 @@ PHP_MINFO_FUNCTION(hiredis);
 
 typedef enum {REDIS_MODE_BLOCKING, REDIS_MODE_PIPELINE, REDIS_MODE_TRANSACTION} redis_mode;
 
+typedef struct redis_command_ {
+	int (*fun)(zval*, redis_mode, zval *); /* callback function */
+	struct redis_command_ *next;
+} redis_command;
+
 /* {{{ struct RedisSock */
-typedef struct RedisSock_ {
+typedef struct {
 	redisContext *ctx;
 	redis_mode mode;
+
 	int enqueued_commands;
+	redis_command *queue_head;
+	redis_command *queue_tail;
 } RedisSock;
 /* }}} */
+
+void redis_enqueue(RedisSock *redis_sock, void *fun);
 
 #define redis_sock_name "Redis Socket Buffer"
 
@@ -185,9 +194,9 @@ PHPAPI void array_zip_values_and_scores(INTERNAL_FUNCTION_PARAMETERS, int use_at
 /* }}} */
 
 /* new readers */
-PHPAPI int redis_reply_string(INTERNAL_FUNCTION_PARAMETERS, zval *z_reply);
-PHPAPI int redis_reply_status(INTERNAL_FUNCTION_PARAMETERS, zval *z_reply);
-PHPAPI int redis_reply_long(INTERNAL_FUNCTION_PARAMETERS, zval *z_reply);
+PHPAPI int redis_reply_string(zval *return_value, redis_mode mode, zval *z_reply);
+PHPAPI int redis_reply_status(zval *return_value, redis_mode mode, zval *z_reply);
+PHPAPI int redis_reply_long(zval *return_value, redis_mode mode, zval *z_reply);
 
 ZEND_BEGIN_MODULE_GLOBALS(hiredis)
 ZEND_END_MODULE_GLOBALS(hiredis)

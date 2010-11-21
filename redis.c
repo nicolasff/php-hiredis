@@ -58,6 +58,7 @@ static zend_function_entry hiredis_functions[] = {
      PHP_ME(HiRedis, incr, NULL, ZEND_ACC_PUBLIC)
      PHP_ME(HiRedis, decr, NULL, ZEND_ACC_PUBLIC)
      PHP_ME(HiRedis, hset, NULL, ZEND_ACC_PUBLIC)
+     PHP_ME(HiRedis, hgetall, NULL, ZEND_ACC_PUBLIC)
 
      {NULL, NULL, NULL}
 };
@@ -424,38 +425,55 @@ PHP_METHOD(HiRedis, decr)
 
 
 PHPAPI int
-redis_reply_string(INTERNAL_FUNCTION_PARAMETERS, zval *z_reply) {
-    if(Z_TYPE_P(z_reply) == IS_STRING) {
-            Z_TYPE_P(return_value) = IS_STRING;
-            Z_STRVAL_P(return_value) = Z_STRVAL_P(z_reply);
-            Z_STRLEN_P(return_value) = Z_STRLEN_P(z_reply);
+redis_reply_string(zval *return_value, redis_mode mode, zval *z_reply) {
+
+    if(Z_TYPE_P(z_reply) == IS_STRING) { /* valid */
+	    if(mode == REDIS_MODE_BLOCKING) { /* copy directly into return_value */
+		    Z_TYPE_P(return_value) = IS_STRING;
+		    Z_STRVAL_P(return_value) = Z_STRVAL_P(z_reply);
+		    Z_STRLEN_P(return_value) = Z_STRLEN_P(z_reply);
+	    } else { /* append */
+		    add_next_index_stringl(return_value, Z_STRVAL_P(z_reply), Z_STRLEN_P(z_reply), 0);
+	    }
             efree(z_reply);
             return 0;
-    } else {
+    } else { /* invalid */
             zval_dtor(z_reply);
             efree(z_reply);
-            ZVAL_BOOL(return_value, 0);
+	    if(mode == REDIS_MODE_BLOCKING) { /* return false */
+            	ZVAL_BOOL(return_value, 0);
+	    } else { /* append false. */
+	        add_next_index_bool(return_value, 0);
+	    }
             return 1;
     }
 }
 
 
 PHPAPI int
-redis_reply_long(INTERNAL_FUNCTION_PARAMETERS, zval *z_reply) {
-    if(Z_TYPE_P(z_reply) == IS_LONG) {
-            ZVAL_LONG(return_value, Z_LVAL_P(z_reply));
+redis_reply_long(zval *return_value, redis_mode mode, zval *z_reply) {
+    if(Z_TYPE_P(z_reply) == IS_LONG) { /* valid */
+	    if(mode == REDIS_MODE_BLOCKING) { /* copy directly into return_value */
+		    ZVAL_LONG(return_value, Z_LVAL_P(z_reply));
+	    } else { /* append long */
+		    add_next_index_long(return_value, Z_LVAL_P(z_reply));
+	    }
             efree(z_reply);
             return 0;
     } else {
             zval_dtor(z_reply);
             efree(z_reply);
-            ZVAL_BOOL(return_value, 0);
+	    if(mode == REDIS_MODE_BLOCKING) { /* return false */
+            	ZVAL_BOOL(return_value, 0);
+	    } else { /* append false. */
+	        add_next_index_bool(return_value, 0);
+	    }
             return 1;
     }
 }
 
 PHPAPI int
-redis_reply_status(INTERNAL_FUNCTION_PARAMETERS, zval *z_reply) {
+redis_reply_status(zval *return_value, redis_mode mode, zval *z_reply) {
         int success = 0;
         if(z_reply && Z_TYPE_P(z_reply) == IS_BOOL) {
                 success = Z_BVAL_P(z_reply);
@@ -464,13 +482,96 @@ redis_reply_status(INTERNAL_FUNCTION_PARAMETERS, zval *z_reply) {
         zval_dtor(z_reply);
         efree(z_reply);
 
-        if(success) {
-                ZVAL_BOOL(return_value, 1);
+	if(mode == REDIS_MODE_BLOCKING) { /* return bool directly */
+                ZVAL_BOOL(return_value, success);
         } else {
-                ZVAL_BOOL(return_value, 0);
+                add_next_index_bool(return_value, success); /* append bool */
         }
         return 0;
 }
+
+PHPAPI int
+redis_reply_zip(zval *return_value, redis_mode mode, zval *z_reply) {
+
+        zval *z_ret;
+        MAKE_STD_ZVAL(z_ret);
+
+        int use_atof = 0; /* FIXME */
+
+        if(Z_TYPE_P(z_reply) != IS_ARRAY) {
+                ZVAL_NULL(z_ret);
+        } else {
+            array_init(z_ret);
+
+            HashTable *keytable = Z_ARRVAL_P(z_reply);
+
+            for(zend_hash_internal_pointer_reset(keytable);
+                            zend_hash_has_more_elements(keytable) == SUCCESS;
+                            zend_hash_move_forward(keytable)) {
+
+                    char *tablekey, *hkey, *hval;
+                    int tablekey_len, hkey_len, hval_len;
+                    unsigned long idx;
+                    int type;
+                    zval **z_value_pp;
+
+                    type = zend_hash_get_current_key_ex(keytable, &tablekey, &tablekey_len, &idx, 0, NULL);
+                    if(zend_hash_get_current_data(keytable, (void**)&z_value_pp) == FAILURE) {
+                            continue; 	/* this should never happen, according to the PHP people. */
+                    }
+
+                    /* get current value, a key */
+                    hkey = Z_STRVAL_PP(z_value_pp);
+                    hkey_len = Z_STRLEN_PP(z_value_pp);
+
+                    /* move forward */
+                    zend_hash_move_forward(keytable);
+
+                    /* fetch again */
+                    type = zend_hash_get_current_key_ex(keytable, &tablekey, &tablekey_len, &idx, 0, NULL);
+                    if(zend_hash_get_current_data(keytable, (void**)&z_value_pp) == FAILURE) {
+                            continue; 	/* this should never happen, according to the PHP people. */
+                    }
+
+                    /* get current value, a hash value now. */
+                    hval = Z_STRVAL_PP(z_value_pp);
+                    hval_len = Z_STRLEN_PP(z_value_pp);
+
+                    if(use_atof) {
+                            add_assoc_double_ex(z_ret, hkey, 1+hkey_len, atof(hval));
+                    } else {
+                            add_assoc_stringl_ex(z_ret, hkey, 1+hkey_len, hval, hval_len, 1);
+                    }
+            }
+
+        }
+	if(mode == REDIS_MODE_BLOCKING) { /* copy z_ret into return_value directly */
+		*return_value = *z_ret;
+		zval_copy_ctor(return_value);
+		zval_dtor(z_ret);
+		efree(z_ret);
+	} else { /* append z_ret to return_value array */
+		add_next_index_zval(return_value, z_ret);
+	}
+
+        return 0;
+}
+
+
+void redis_enqueue(RedisSock *redis_sock, void *fun) {
+
+	redis_command *c = ecalloc(1, sizeof(redis_command));
+	c->fun = fun;
+
+	/* enqueue */
+	if(redis_sock->queue_tail == NULL) {
+		redis_sock->queue_tail = redis_sock->queue_head = c;
+	} else {
+		redis_sock->queue_tail->next = c;
+	} 
+	redis_sock->enqueued_commands++;
+}
+
 
 PHP_METHOD(HiRedis, delete)
 {
@@ -555,6 +656,8 @@ PHP_METHOD(HiRedis, pipeline)
     if(redis_sock->mode == REDIS_MODE_BLOCKING) {
             redis_sock->mode = REDIS_MODE_PIPELINE;
             redis_sock->enqueued_commands = 0;
+	    redis_sock->queue_head = NULL;
+	    redis_sock->queue_tail = NULL;
             RETURN_ZVAL(object, 1, 0);
     }
     RETURN_FALSE;
@@ -575,6 +678,8 @@ PHP_METHOD(HiRedis, multi)
                     efree(z_reply);
                     redis_sock->mode = REDIS_MODE_TRANSACTION;
                     redis_sock->enqueued_commands = 0;
+		    redis_sock->queue_head = NULL;
+		    redis_sock->queue_tail = NULL;
                     RETURN_ZVAL(object, 1, 0);
             } else {
                     zval_dtor(z_reply);
@@ -586,7 +691,7 @@ PHP_METHOD(HiRedis, multi)
 
 PHP_METHOD(HiRedis, exec)
 {
-    zval *object = getThis(), *z_reply;
+    zval *object = getThis(), *z_reply, *z_raw_tab;
     RedisSock *redis_sock;
     int i, count;
 	redis_mode mode;
@@ -598,8 +703,12 @@ PHP_METHOD(HiRedis, exec)
     count = redis_sock->enqueued_commands;
     redis_sock->enqueued_commands = 0;
 
-	mode = redis_sock->mode;
+    mode = redis_sock->mode;
     redis_sock->mode = REDIS_MODE_BLOCKING;
+
+    if(mode != REDIS_MODE_BLOCKING) {
+	    MAKE_STD_ZVAL(z_raw_tab); // collection array for values
+    }
 
     switch(mode) {
             case REDIS_MODE_BLOCKING:
@@ -607,21 +716,32 @@ PHP_METHOD(HiRedis, exec)
 
             case REDIS_MODE_TRANSACTION:
                     z_reply = redisCommand(redis_sock->ctx, "EXEC");
-                    Z_TYPE_P(return_value) = IS_ARRAY;
-                    Z_ARRVAL_P(return_value) = Z_ARRVAL_P(z_reply);
+                    Z_TYPE_P(z_raw_tab) = IS_ARRAY;
+                    Z_ARRVAL_P(z_raw_tab) = Z_ARRVAL_P(z_reply);
                     efree(z_reply);
-                    return;
+                    break;
 
             case REDIS_MODE_PIPELINE:
-                    array_init(return_value);
+                    array_init(z_raw_tab);
 
                     for(i = 0; i < count; ++i) {
                             redisGetReply(redis_sock->ctx, (void**)&z_reply);
-                            add_next_index_zval(return_value, z_reply);
+                            add_next_index_zval(z_raw_tab, z_reply);
                     }
                     break;
     }
 
+    array_init(return_value);
+
+    redis_command *c;
+    HashTable *raw_ht = Z_ARRVAL_P(z_raw_tab);
+    for(c = redis_sock->queue_head, zend_hash_internal_pointer_reset(raw_ht); c; c = c->next, zend_hash_move_forward(raw_ht)) {
+
+	    zval **z_value_pp;
+	    zend_hash_get_current_data(raw_ht, (void**)&z_value_pp);
+
+	c->fun(return_value, mode, *z_value_pp);
+    }
 }
 
 /* {{{ proto long HiRedis::hset(string key, string field, string val)
@@ -644,6 +764,26 @@ PHP_METHOD(HiRedis, hset)
                     key, (size_t)key_len,
                     field, (size_t)field_len,
                     val, (size_t)val_len);
+}
+/* }}} */
+
+/* {{{ proto array HiRedis::hgetall(string key)
+ */
+PHP_METHOD(HiRedis, hgetall)
+{
+    zval *object;
+    RedisSock *redis_sock;
+    char *key;
+    int key_len;
+
+    if (zend_parse_method_parameters(ZEND_NUM_ARGS() TSRMLS_CC, getThis(), "Os",
+                                     &object, hiredis_ce,
+                                     &key, &key_len) == FAILURE) {
+        RETURN_FALSE;
+    }
+
+    REDIS_SOCK_GET(redis_sock);
+    REDIS_RUN(redis_sock, redis_reply_zip, "HGETALL %b", key, (size_t)key_len);
 }
 /* }}} */
 

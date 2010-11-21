@@ -1,6 +1,7 @@
 <?php
 
 function test($className) {
+	printf("testing %s\n", $className);
 	$r = new $className;
 	$c = $r->connect('127.0.0.1', 6379);
 	printf("[%s] Connection: %s\n", $className, $c?"OK":"FAILURE");
@@ -71,10 +72,37 @@ function test($className) {
 
 	printf("[%s] %d DECR: %0.2f sec (%d/sec)\n", $className, $count, $t6-$t5, ($count)/($t6-$t5));
 
+	// hset, hgetall
+	$r->delete('h');
+	$r->hset('h', 'a', 'x');
+	$r->hset('h', 'b', 'y');
+	$r->hset('h', 'c', 'z');
+
+	$tab = $r->hgetall('h');
+	assert($tab === array('a' => 'x', 'b' => 'y', 'c' => 'z'));
+
+	$tab = $r->multi()
+		->hset('h', 'a', 'plop')
+		->hgetall('h')
+		->exec();
+	assert($tab === array(0, array('a' => 'plop', 'b' => 'y', 'c' => 'z')));
+
+	$tab = $r->multi()
+		->hset('h', 'a', 'plop')
+		->hgetall('h')
+		->exec();
+	assert($tab === array(0, array('a' => 'plop', 'b' => 'y', 'c' => 'z')));
+
 	$r->close();
 	printf("\n");
 }
 
-test("Redis");
-test("HiRedis");
+function bench() {
+	test("Redis");
+	test("HiRedis");
+}
+
+bench();
+
+
 ?>
