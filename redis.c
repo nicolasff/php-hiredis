@@ -61,6 +61,7 @@ static zend_function_entry hiredis_functions[] = {
      PHP_ME(HiRedis, hset, NULL, ZEND_ACC_PUBLIC)
      PHP_ME(HiRedis, hgetall, NULL, ZEND_ACC_PUBLIC)
      PHP_ME(HiRedis, hmget, NULL, ZEND_ACC_PUBLIC)
+     PHP_ME(HiRedis, setnx, NULL, ZEND_ACC_PUBLIC)
 
      {NULL, NULL, NULL}
 };
@@ -573,12 +574,34 @@ PHP_METHOD(HiRedis, hgetall)
 PHP_METHOD(HiRedis, hmget) {
 	redis_varg_run(INTERNAL_FUNCTION_PARAM_PASSTHRU, "HMGET", redis_reply_zip_closure, 1);
 }
+/* }}} */
 
 
+/* {{{ proto array HiRedis::delete(string key)
+ */
 PHP_METHOD(HiRedis, delete) {
 
 	redis_varg_run(INTERNAL_FUNCTION_PARAM_PASSTHRU, "DEL", redis_reply_long, 0);
 }
+/* }}} */
 
+/* {{{ proto bool HiRedis::setnx(string key, string value)
+*/
+PHP_METHOD(HiRedis, setnx) {
+    zval *object;
+    RedisSock *redis_sock;
+    char *key = NULL, *val = NULL;
+    int key_len, val_len;
+
+    if (zend_parse_method_parameters(ZEND_NUM_ARGS() TSRMLS_CC, getThis(), "Oss",
+                                     &object, hiredis_ce, &key, &key_len,
+                                     &val, &val_len) == FAILURE) {
+        RETURN_FALSE;
+    }
+
+    REDIS_SOCK_GET(redis_sock);
+    REDIS_RUN(redis_sock, redis_reply_long_as_bool, "SETNX %b %b", key, (size_t)key_len, val, (size_t)val_len);
+}
+/* }}} */
 
 /* vim: set tabstop=8 expandtab: */

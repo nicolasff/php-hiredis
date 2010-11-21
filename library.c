@@ -282,3 +282,25 @@ redis_varg_run(INTERNAL_FUNCTION_PARAMETERS, char *keyword, void *fun, int keep_
 	    REDIS_RUN_ARGS(redis_sock, fun, argc+1, args, arglen, NULL);
     }
 }
+
+PHPAPI int redis_reply_long_as_bool(zval *return_value, redis_mode mode, zval *z_reply, zval **z_args) {
+
+    if(Z_TYPE_P(z_reply) == IS_LONG) { /* valid */
+	    if(mode == REDIS_MODE_BLOCKING) { /* copy directly into return_value */
+		    ZVAL_BOOL(return_value, Z_LVAL_P(z_reply) == 1 ? 1 : 0);
+	    } else { /* append long */
+		    add_next_index_bool(return_value, Z_LVAL_P(z_reply) == 1 ? 1 : 0);
+	    }
+            efree(z_reply);
+            return 0;
+    } else {
+            zval_dtor(z_reply);
+            efree(z_reply);
+	    if(mode == REDIS_MODE_BLOCKING) { /* return false */
+            	ZVAL_BOOL(return_value, 0);
+	    } else { /* append false. */
+	        add_next_index_bool(return_value, 0);
+	    }
+            return 1;
+    }
+}

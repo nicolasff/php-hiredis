@@ -6,7 +6,7 @@ function test($className) {
 	$c = $r->connect('127.0.0.1', 6379);
 	printf("[%s] Connection: %s\n", $className, $c?"OK":"FAILURE");
 
-	$count = 100;
+	$count = 10000;
 
 	// SET
 	$t0 = microtime(true);
@@ -90,6 +90,7 @@ function test($className) {
 	$tab = $r->hgetall('h');
 	assert($tab === array('a' => 'x', 'b' => 'y', 'c' => 'z'));
 
+	/*
 	$tab = $r->hmget('h', array('a', 'b'));
 	assert($tab === array('a' => 'x', 'b' => 'y'));
 
@@ -109,14 +110,25 @@ function test($className) {
 		->hgetall('h')
 		->exec();
 	assert($tab === array(0, array('a' => 'plop', 'b' => 'y', 'c' => 'z')));
+	*/
 
+	$r->delete('key');
+	assert($r->setnx('key', 'val') === TRUE);
+	assert($r->setnx('key', 'val') === FALSE);
+
+
+	// close
 	$r->close();
 	printf("\n");
 }
 
 function bench() {
-	test("Redis");
-	test("HiRedis");
+	try {
+		test("Redis");
+		test("HiRedis");
+	} catch(Exception $e) {
+		var_dump($e);
+	}
 }
 
 bench();
