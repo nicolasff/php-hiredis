@@ -52,6 +52,7 @@ function test($className) {
 	$t4 = microtime(true);
 	printf("[%s] %d MULTI/SET/GET/EXEC: %0.2f sec (%d/sec)\n", $className, $count, $t4-$t3, ($count)/($t4-$t3));
 
+
 	$ret = $r->delete('key');
 	assert($ret === 1);
 	$r->set('x', 'a');
@@ -59,10 +60,12 @@ function test($className) {
 	$ret = $r->delete('x', 'y');
 	assert($ret === 2);
 
+
 	for($i = 0; $i < $count; $i++) {
 		$ret = $r->incr('key');
 		assert($ret === $i + 1);
 	}
+
 	$t5 = microtime(true);
 
 	printf("[%s] %d INCR: %0.2f sec (%d/sec)\n", $className, $count, $t5-$t4, ($count)/($t5-$t4));
@@ -73,6 +76,7 @@ function test($className) {
 		$ret = $r->decr('key');
 		assert($ret === -$i - 1);
 	}
+
 	$t6 = microtime(true);
 
 	printf("[%s] %d DECR: %0.2f sec (%d/sec)\n", $className, $count, $t6-$t5, ($count)/($t6-$t5));
@@ -86,9 +90,11 @@ function test($className) {
 	$tab = $r->hgetall('h');
 	assert($tab === array('a' => 'x', 'b' => 'y', 'c' => 'z'));
 
+	$tab = $r->hmget('h', array('a', 'b'));
+	assert($tab === array('a' => 'x', 'b' => 'y'));
+
 	if($className === 'HiRedis') {
 		$tab = $r->hmget('h', 'a', 'b');
-		echo "HMGET:"; var_dump($tab);
 		assert($tab === array('a' => 'x', 'b' => 'y'));
 	}
 

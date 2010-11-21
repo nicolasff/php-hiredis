@@ -797,6 +797,30 @@ redis_varg_run(INTERNAL_FUNCTION_PARAMETERS, char *keyword, void *fun, int keep_
         RETURN_FALSE;
     }
 
+    /* check if there is only one argument, an array */
+    if(argc == 2 && Z_TYPE_P(z_args[1]) == IS_ARRAY) {
+	    zval *z_key = z_args[0];
+	    zval *z_array = z_args[1];
+	    efree(z_args);
+	    argc = zend_hash_num_elements(Z_ARRVAL_P(z_array));
+	    z_args = ecalloc(argc, sizeof(zval*));
+
+	    MAKE_STD_ZVAL(z_args[0]);
+	    *z_args[0] = *z_key;
+	    zval_copy_ctor(z_args[0]);
+
+	    for(i = 1; i <= argc; ++i) {
+		    zval **z_i_pp;
+		    if(zend_hash_index_find(Z_ARRVAL_P(z_array), i-1, (void **)&z_i_pp) == FAILURE) {
+			    efree(z_args);
+			    RETURN_FALSE;
+		    }
+		    MAKE_STD_ZVAL(z_args[i]);
+		    *z_args[i] = **z_i_pp;
+		    zval_copy_ctor(z_args[i]);
+	    }
+    }
+
     /* copy all args as strings */
     args = emalloc((argc+1) * sizeof(char*));
     arglen = emalloc((argc+1) * sizeof(size_t));
