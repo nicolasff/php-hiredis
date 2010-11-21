@@ -149,7 +149,6 @@ typedef struct {
 } RedisSock;
 /* }}} */
 
-void redis_enqueue(RedisSock *redis_sock, void *fun, zval **z_args);
 
 #define redis_sock_name "Redis Socket Buffer"
 
@@ -195,15 +194,6 @@ PHPAPI void generic_pop_function(INTERNAL_FUNCTION_PARAMETERS, char *keyword, in
 PHPAPI void array_zip_values_and_scores(INTERNAL_FUNCTION_PARAMETERS, int use_atof TSRMLS_DC);
 
 /* }}} */
-
-/* new readers */
-PHPAPI int redis_reply_string(zval *return_value, redis_mode mode, zval *z_reply, zval **z_args);
-PHPAPI int redis_reply_status(zval *return_value, redis_mode mode, zval *z_reply, zval **z_args);
-PHPAPI int redis_reply_long(zval *return_value, redis_mode mode, zval *z_reply, zval **z_args);
-PHPAPI int redis_reply_zip(zval *return_value, redis_mode mode, zval *z_reply, zval **z_args);
-PHPAPI int redis_reply_zip_closure(zval *return_value, redis_mode mode, zval *z_reply, zval **z_args);
-
-PHPAPI void redis_varg_run(INTERNAL_FUNCTION_PARAMETERS, char *keyword, void *fun, int keep_args);
 
 ZEND_BEGIN_MODULE_GLOBALS(hiredis)
 ZEND_END_MODULE_GLOBALS(hiredis)
