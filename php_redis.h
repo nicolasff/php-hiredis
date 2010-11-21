@@ -35,6 +35,7 @@ PHP_METHOD(HiRedis, multi);
 PHP_METHOD(HiRedis, exec);
 PHP_METHOD(HiRedis, incr);
 PHP_METHOD(HiRedis, decr);
+PHP_METHOD(HiRedis, hset);
 /*
 PHP_METHOD(Redis, setnx);
 PHP_METHOD(Redis, getSet);

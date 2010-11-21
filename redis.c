@@ -1,4 +1,4 @@
-/* -*- Mode: C; tab-width: 4 -*- */
+/* -*- Mode: C; tab-width: 8 -*- */
 /*
   +----------------------------------------------------------------------+
   | PHP Version 5                                                        |
@@ -57,6 +57,7 @@ static zend_function_entry hiredis_functions[] = {
      PHP_ME(HiRedis, exec, NULL, ZEND_ACC_PUBLIC)
      PHP_ME(HiRedis, incr, NULL, ZEND_ACC_PUBLIC)
      PHP_ME(HiRedis, decr, NULL, ZEND_ACC_PUBLIC)
+     PHP_ME(HiRedis, hset, NULL, ZEND_ACC_PUBLIC)
 
      {NULL, NULL, NULL}
 };
@@ -357,7 +358,7 @@ PHP_METHOD(HiRedis, set)
     }
 
     REDIS_SOCK_GET(redis_sock);
-    REDIS_RUN(redis_sock, redis_reply_status, "SET %b %b", key, key_len, val, val_len);
+    REDIS_RUN(redis_sock, redis_reply_status, "SET %b %b", key, (size_t)key_len, val, (size_t)val_len);
 }
 /* }}} */
 
@@ -377,7 +378,7 @@ PHP_METHOD(HiRedis, get)
     }
 
     REDIS_SOCK_GET(redis_sock);
-    REDIS_RUN(redis_sock, redis_reply_string, "GET %b", key, key_len);
+    REDIS_RUN(redis_sock, redis_reply_string, "GET %b", key, (size_t)key_len);
 }
 /* }}} */
 
@@ -397,7 +398,7 @@ PHP_METHOD(HiRedis, incr)
     }
 
     REDIS_SOCK_GET(redis_sock);
-    REDIS_RUN(redis_sock, redis_reply_long, "INCR %b", key, key_len);
+    REDIS_RUN(redis_sock, redis_reply_long, "INCR %b", key, (size_t)key_len);
 }
 /* }}} */
 
@@ -417,7 +418,7 @@ PHP_METHOD(HiRedis, decr)
     }
 
     REDIS_SOCK_GET(redis_sock);
-    REDIS_RUN(redis_sock, redis_reply_long, "DECR %b", key, key_len);
+    REDIS_RUN(redis_sock, redis_reply_long, "DECR %b", key, (size_t)key_len);
 }
 /* }}} */
 
@@ -623,4 +624,27 @@ PHP_METHOD(HiRedis, exec)
 
 }
 
-/* vim: set tabstop=4 expandtab: */
+/* {{{ proto long HiRedis::hset(string key, string field, string val)
+ */
+PHP_METHOD(HiRedis, hset)
+{
+    zval *object;
+    RedisSock *redis_sock;
+    char *key, *field, *val;
+    int key_len, field_len, val_len;
+
+    if (zend_parse_method_parameters(ZEND_NUM_ARGS() TSRMLS_CC, getThis(), "Osss",
+                                     &object, hiredis_ce,
+                                     &key, &key_len, &field, &field_len, &val, &val_len) == FAILURE) {
+        RETURN_FALSE;
+    }
+
+    REDIS_SOCK_GET(redis_sock);
+    REDIS_RUN(redis_sock, redis_reply_long, "HSET %b %b %b",
+                    key, (size_t)key_len,
+                    field, (size_t)field_len,
+                    val, (size_t)val_len);
+}
+/* }}} */
+
+/* vim: set tabstop=8 expandtab: */
