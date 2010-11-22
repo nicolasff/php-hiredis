@@ -62,6 +62,7 @@ static zend_function_entry hiredis_functions[] = {
      PHP_ME(HiRedis, hgetall, NULL, ZEND_ACC_PUBLIC)
      PHP_ME(HiRedis, hmget, NULL, ZEND_ACC_PUBLIC)
      PHP_ME(HiRedis, setnx, NULL, ZEND_ACC_PUBLIC)
+     PHP_ME(HiRedis, getset, NULL, ZEND_ACC_PUBLIC)
      PHP_ME(HiRedis, ping, NULL, ZEND_ACC_PUBLIC)
 
      {NULL, NULL, NULL}
@@ -610,6 +611,25 @@ PHP_METHOD(HiRedis, setnx) {
 
     REDIS_SOCK_GET(redis_sock);
     REDIS_RUN(redis_sock, redis_reply_long_as_bool, "SETNX %b %b", key, (size_t)key_len, val, (size_t)val_len);
+}
+/* }}} */
+
+/* {{{ proto string HiRedis::getset(string key, string value)
+*/
+PHP_METHOD(HiRedis, getset) {
+    zval *object;
+    RedisSock *redis_sock;
+    char *key = NULL, *val = NULL;
+    int key_len, val_len;
+
+    if (zend_parse_method_parameters(ZEND_NUM_ARGS() TSRMLS_CC, getThis(), "Oss",
+                                     &object, hiredis_ce, &key, &key_len,
+                                     &val, &val_len) == FAILURE) {
+        RETURN_FALSE;
+    }
+
+    REDIS_SOCK_GET(redis_sock);
+    REDIS_RUN(redis_sock, redis_reply_string, "GETSET %b %b", key, (size_t)key_len, val, (size_t)val_len);
 }
 /* }}} */
 
