@@ -1,9 +1,9 @@
 <?php
 
-function test($className) {
-	printf("testing %s\n", $className);
+function test($className, $host, $port = NULL) {
+	printf("testing %s on %s\n", $className, $host);
 	$r = new $className;
-	$c = $r->connect('127.0.0.1', 6379);
+	$c = $r->connect($host, $port);
 	printf("[%s] Connection: %s\n", $className, $c?"OK":"FAILURE");
 
 	$count = 10000;
@@ -124,8 +124,9 @@ function test($className) {
 
 function bench() {
 	try {
-		test("Redis");
-		test("HiRedis");
+		test("Redis", '127.0.0.1', 6379);
+		test("HiRedis", '127.0.0.1', 6379);
+		test("HiRedis", '/tmp/redis.sock');
 	} catch(Exception $e) {
 		var_dump($e);
 	}

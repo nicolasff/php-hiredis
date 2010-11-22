@@ -294,7 +294,11 @@ PHP_METHOD(HiRedis, connect)
     }
 
     redis_sock = emalloc(sizeof(RedisSock));
-    redis_sock->ctx = redisConnect(host, port);
+    if(host_len != 0 && *host == '/') { /* unix socket */
+            redis_sock->ctx = redisConnectUnix(host);
+    } else {
+            redis_sock->ctx = redisConnect(host, port);
+    }
     if (!redis_sock || redis_sock->ctx->errstr != NULL) {
             printf("Error: %s\n", redis_sock->ctx->errstr);
             RETURN_FALSE;
