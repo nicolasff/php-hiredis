@@ -64,6 +64,7 @@ static zend_function_entry hiredis_functions[] = {
      PHP_ME(HiRedis, setnx, NULL, ZEND_ACC_PUBLIC)
      PHP_ME(HiRedis, getset, NULL, ZEND_ACC_PUBLIC)
      PHP_ME(HiRedis, ping, NULL, ZEND_ACC_PUBLIC)
+     PHP_ME(HiRedis, renamekey, NULL, ZEND_ACC_PUBLIC)
 
      {NULL, NULL, NULL}
 };
@@ -645,6 +646,25 @@ PHP_METHOD(HiRedis, ping) {
 
     REDIS_SOCK_GET(redis_sock);
     REDIS_RUN(redis_sock, redis_reply_string, "PING");
+}
+/* }}} */
+
+/* {{{ proto string HiRedis::renamekey(string from, string to)
+*/
+PHP_METHOD(HiRedis, renamekey) {
+    zval *object;
+    RedisSock *redis_sock;
+    char *from = NULL, *to = NULL;
+    int from_len, to_len;
+
+    if (zend_parse_method_parameters(ZEND_NUM_ARGS() TSRMLS_CC, getThis(), "Oss",
+                                     &object, hiredis_ce, &from, &from_len,
+                                     &to, &to_len) == FAILURE) {
+        RETURN_FALSE;
+    }
+
+    REDIS_SOCK_GET(redis_sock);
+    REDIS_RUN(redis_sock, redis_reply_status, "RENAME %b %b", from, (size_t)from_len, to, (size_t)to_len);
 }
 /* }}} */
 
