@@ -61,14 +61,12 @@ var_dump(TRUE === $r->set('key', TRUE));
 var_dump('1' === $r->get('key'));
 
 var_dump(true === $r->set('key', ''));
-/*
 var_dump('' === $r->get('key'));
 var_dump(true === $r->set('key', NULL));
 var_dump('' === $r->get('key'));
 
 var_dump(true === $r->set('key', gzcompress('42')));
 var_dump('42' === gzuncompress($r->get('key')));
- */
 ?>
 --EXPECT--
 bool(true)
@@ -81,6 +79,11 @@ bool(true)
 string(3) "val"
 string(112) "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
 string(112) "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+bool(true)
+bool(true)
+bool(true)
+bool(true)
+bool(true)
 bool(true)
 bool(true)
 bool(true)
