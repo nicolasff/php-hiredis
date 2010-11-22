@@ -65,6 +65,7 @@ static zend_function_entry hiredis_functions[] = {
      PHP_ME(HiRedis, getset, NULL, ZEND_ACC_PUBLIC)
      PHP_ME(HiRedis, ping, NULL, ZEND_ACC_PUBLIC)
      PHP_ME(HiRedis, renamekey, NULL, ZEND_ACC_PUBLIC)
+     PHP_ME(HiRedis, getmultiple, NULL, ZEND_ACC_PUBLIC)
 
      {NULL, NULL, NULL}
 };
@@ -150,7 +151,7 @@ static void *createNilObject(const redisReadTask *task) {
         // php_printf("CALLBACK: %s\n", __FUNCTION__);
         zval *z_ret;
         MAKE_STD_ZVAL(z_ret);
-        ZVAL_NULL(z_ret);
+        ZVAL_BOOL(z_ret, 0);
         return tryParentize(task, z_ret);
 }
 
@@ -665,6 +666,13 @@ PHP_METHOD(HiRedis, renamekey) {
 
     REDIS_SOCK_GET(redis_sock);
     REDIS_RUN(redis_sock, redis_reply_status, "RENAME %b %b", from, (size_t)from_len, to, (size_t)to_len);
+}
+/* }}} */
+
+/* {{{ proto string HiRedis::getmultiple(array keys)
+*/
+PHP_METHOD(HiRedis, getmultiple) {
+    redis_varg_run(INTERNAL_FUNCTION_PARAM_PASSTHRU, "MGET", redis_reply_array, 0);
 }
 /* }}} */
 

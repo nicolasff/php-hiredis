@@ -87,6 +87,34 @@ redis_reply_status(zval *return_value, redis_mode mode, zval *z_reply, zval **z_
 }
 
 PHPAPI int
+redis_reply_array(zval *return_value, redis_mode mode, zval *z_reply, zval **z_args) {
+
+	if(mode == REDIS_MODE_BLOCKING) { /* return array directly */
+		if(z_reply && Z_TYPE_P(z_reply) == IS_ARRAY) { /* success */
+			*return_value = *z_reply;
+			zval_copy_ctor(return_value);
+		} else {
+			ZVAL_BOOL(return_value, 0);
+		}
+        } else {
+		if(z_reply && Z_TYPE_P(z_reply) == IS_ARRAY) { /* success */
+			zval *z_ret = NULL;
+			MAKE_STD_ZVAL(z_ret);
+			*z_ret = *z_reply;
+			zval_copy_ctor(z_ret);
+			add_next_index_zval(return_value, z_ret); /* append array */
+		} else {
+			add_next_index_bool(return_value, 0);
+		}
+        }
+
+        zval_dtor(z_reply);
+        efree(z_reply);
+
+        return 0;
+}
+
+PHPAPI int
 redis_reply_zip(zval *return_value, redis_mode mode, zval *z_reply, zval **z_args) {
 
         zval *z_ret;
@@ -229,8 +257,9 @@ redis_varg_run(INTERNAL_FUNCTION_PARAMETERS, char *keyword, void *fun, int keep_
 
     const char **args;
     size_t *arglen;
+    int copy_array_to = -1;
 
-    zval *z_reply;
+    zval *z_reply, *z_array;
 
     /* get all args into the zval array z_args */
     zval **z_args = emalloc(argc * sizeof(zval*));
@@ -242,24 +271,32 @@ redis_varg_run(INTERNAL_FUNCTION_PARAMETERS, char *keyword, void *fun, int keep_
     /* check if there is only one argument, an array */
     if(argc == 2 && Z_TYPE_P(z_args[1]) == IS_ARRAY) {
 	    zval *z_key = z_args[0];
-	    zval *z_array = z_args[1];
+	    z_array = z_args[1];
 	    efree(z_args);
-	    argc = zend_hash_num_elements(Z_ARRVAL_P(z_array));
+	    argc = 1 + zend_hash_num_elements(Z_ARRVAL_P(z_array));
 	    z_args = ecalloc(argc, sizeof(zval*));
 
 	    MAKE_STD_ZVAL(z_args[0]);
 	    *z_args[0] = *z_key;
 	    zval_copy_ctor(z_args[0]);
+	    copy_array_to = 1;
 
-	    for(i = 1; i <= argc; ++i) {
+    } else if(argc == 1 && Z_TYPE_P(z_args[0]) == IS_ARRAY) {
+	    copy_array_to = 0;
+	    z_array = z_args[0];
+	    argc = zend_hash_num_elements(Z_ARRVAL_P(z_array));
+    }
+
+    if(copy_array_to != -1) {
+	    for(i = 0; i < zend_hash_num_elements(Z_ARRVAL_P(z_array)); ++i) {
 		    zval **z_i_pp;
-		    if(zend_hash_index_find(Z_ARRVAL_P(z_array), i-1, (void **)&z_i_pp) == FAILURE) {
+		    if(zend_hash_index_find(Z_ARRVAL_P(z_array), i, (void **)&z_i_pp) == FAILURE) {
 			    efree(z_args);
 			    RETURN_FALSE;
 		    }
-		    MAKE_STD_ZVAL(z_args[i]);
-		    *z_args[i] = **z_i_pp;
-		    zval_copy_ctor(z_args[i]);
+		    MAKE_STD_ZVAL(z_args[i+copy_array_to]);
+		    *z_args[i+copy_array_to] = **z_i_pp;
+		    zval_copy_ctor(z_args[i+copy_array_to]);
 	    }
     }
 

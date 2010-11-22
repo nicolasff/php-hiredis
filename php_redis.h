@@ -42,6 +42,7 @@ PHP_METHOD(HiRedis, setnx);
 PHP_METHOD(HiRedis, getset);
 PHP_METHOD(HiRedis, ping);
 PHP_METHOD(HiRedis, renamekey);
+PHP_METHOD(HiRedis, getmultiple);
 /*
 PHP_METHOD(Redis, randomKey);
 PHP_METHOD(Redis, renameNx);
