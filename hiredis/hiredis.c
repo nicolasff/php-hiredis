@@ -347,7 +347,7 @@ static int processItem(redisReader *r) {
             default:
                 byte = sdscatrepr(sdsempty(),p,1);
                 redisSetReplyReaderError(r,sdscatprintf(sdsempty(),
-                    "protocol error, got %s as reply type byte", byte));
+                    "Protocol error, got %s as reply type byte", byte));
                 sdsfree(byte);
                 return -1;
             }
@@ -368,8 +368,7 @@ static int processItem(redisReader *r) {
     case REDIS_REPLY_ARRAY:
         return processMultiBulkItem(r);
     default:
-        redisSetReplyReaderError(r,sdscatprintf(sdsempty(),
-            "unknown item type '%d'", cur->type));
+        assert(NULL);
         return -1;
     }
 }
@@ -525,6 +524,7 @@ int redisvFormatCommand(char **target, const char *format, va_list ap) {
     char *cmd = NULL; /* final command */
     int pos; /* position in final command */
     sds current; /* current argument */
+    int interpolated = 0; /* did we do interpolation on an argument? */
     char **argv = NULL;
     int argc = 0, j;
     int totlen = 0;
@@ -541,6 +541,7 @@ int redisvFormatCommand(char **target, const char *format, va_list ap) {
                 if (sdslen(current) != 0) {
                     addArgument(current, &argv, &argc, &totlen);
                     current = sdsempty();
+                    interpolated = 0;
                 }
             } else {
                 current = sdscatlen(current,c,1);
@@ -549,15 +550,20 @@ int redisvFormatCommand(char **target, const char *format, va_list ap) {
             switch(c[1]) {
             case 's':
                 arg = va_arg(ap,char*);
-                current = sdscat(current,arg);
+                size = strlen(arg);
+                if (size > 0)
+                    current = sdscatlen(current,arg,size);
+                interpolated = 1;
                 break;
             case 'b':
                 arg = va_arg(ap,char*);
                 size = va_arg(ap,size_t);
-                current = sdscatlen(current,arg,size);
+                if (size > 0)
+                    current = sdscatlen(current,arg,size);
+                interpolated = 1;
                 break;
             case '%':
-                cmd = sdscat(cmd,"%");
+                current = sdscat(current,"%");
                 break;
             }
             c++;
@@ -566,7 +572,7 @@ int redisvFormatCommand(char **target, const char *format, va_list ap) {
     }
 
     /* Add the last argument if needed */
-    if (sdslen(current) != 0) {
+    if (interpolated || sdslen(current) != 0) {
         addArgument(current, &argv, &argc, &totlen);
     } else {
         sdsfree(current);

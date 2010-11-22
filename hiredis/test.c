@@ -47,17 +47,35 @@ static void test_format_commands() {
         len == 4+4+(3+2)+4+(3+2)+4+(3+2));
     free(cmd);
 
+    test("Format command with %%s and an empty string: ");
+    len = redisFormatCommand(&cmd,"SET %s %s","foo","");
+    test_cond(strncmp(cmd,"*3\r\n$3\r\nSET\r\n$3\r\nfoo\r\n$0\r\n\r\n",len) == 0 &&
+        len == 4+4+(3+2)+4+(3+2)+4+(0+2));
+    free(cmd);
+
     test("Format command with %%b string interpolation: ");
     len = redisFormatCommand(&cmd,"SET %b %b","foo",3,"b\0r",3);
     test_cond(strncmp(cmd,"*3\r\n$3\r\nSET\r\n$3\r\nfoo\r\n$3\r\nb\0r\r\n",len) == 0 &&
         len == 4+4+(3+2)+4+(3+2)+4+(3+2));
     free(cmd);
 
+    test("Format command with %%b and an empty string: ");
+    len = redisFormatCommand(&cmd,"SET %b %b","foo",3,"",0);
+    test_cond(strncmp(cmd,"*3\r\n$3\r\nSET\r\n$3\r\nfoo\r\n$0\r\n\r\n",len) == 0 &&
+        len == 4+4+(3+2)+4+(3+2)+4+(0+2));
+    free(cmd);
+
+    test("Format command with literal %%: ");
+    len = redisFormatCommand(&cmd,"SET %% %%");
+    test_cond(strncmp(cmd,"*3\r\n$3\r\nSET\r\n$1\r\n%\r\n$1\r\n%\r\n",len) == 0 &&
+        len == 4+4+(3+2)+4+(1+2)+4+(1+2));
+    free(cmd);
+
     const char *argv[3];
     argv[0] = "SET";
-    argv[1] = "foo";
+    argv[1] = "foo\0xxx";
     argv[2] = "bar";
-    size_t lens[3] = { 3, 3, 3 };
+    size_t lens[3] = { 3, 7, 3 };
     int argc = 3;
 
     test("Format command by passing argc/argv without lengths: ");
@@ -68,8 +86,8 @@ static void test_format_commands() {
 
     test("Format command by passing argc/argv with lengths: ");
     len = redisFormatCommandArgv(&cmd,argc,argv,lens);
-    test_cond(strncmp(cmd,"*3\r\n$3\r\nSET\r\n$3\r\nfoo\r\n$3\r\nbar\r\n",len) == 0 &&
-        len == 4+4+(3+2)+4+(3+2)+4+(3+2));
+    test_cond(strncmp(cmd,"*3\r\n$3\r\nSET\r\n$7\r\nfoo\0xxx\r\n$3\r\nbar\r\n",len) == 0 &&
+        len == 4+4+(3+2)+4+(7+2)+4+(3+2));
     free(cmd);
 }
 
@@ -77,6 +95,18 @@ static void test_blocking_connection() {
     redisContext *c;
     redisReply *reply;
     int major, minor;
+
+    test("Returns error when host cannot be resolved: ");
+    c = redisConnect((char*)"idontexist.local", 6379);
+    test_cond(c->err == REDIS_ERR_OTHER &&
+        strcmp(c->errstr,"Can't resolve: idontexist.local") == 0);
+    redisFree(c);
+
+    test("Returns error when the port is not open: ");
+    c = redisConnect((char*)"localhost", 56380);
+    test_cond(c->err == REDIS_ERR_IO &&
+        strcmp(c->errstr,"Connection refused") == 0);
+    redisFree(c);
 
     __connect(&c);
     test("Is able to deliver commands: ");
@@ -210,7 +240,7 @@ static void test_reply_reader() {
     ret = redisReplyReaderGetReply(reader,NULL);
     err = redisReplyReaderGetError(reader);
     test_cond(ret == REDIS_ERR &&
-              strcasecmp(err,"protocol error, got \"@\" as reply type byte") == 0);
+              strcasecmp(err,"Protocol error, got \"@\" as reply type byte") == 0);
     redisReplyReaderFree(reader);
 
     /* when the reply already contains multiple items, they must be free'd
@@ -223,7 +253,7 @@ static void test_reply_reader() {
     ret = redisReplyReaderGetReply(reader,NULL);
     err = redisReplyReaderGetError(reader);
     test_cond(ret == REDIS_ERR &&
-              strcasecmp(err,"protocol error, got \"@\" as reply type byte") == 0);
+              strcasecmp(err,"Protocol error, got \"@\" as reply type byte") == 0);
     redisReplyReaderFree(reader);
 
     test("Works with NULL functions for reply: ");
