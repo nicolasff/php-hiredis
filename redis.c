@@ -62,6 +62,7 @@ static zend_function_entry hiredis_functions[] = {
      PHP_ME(HiRedis, hgetall, NULL, ZEND_ACC_PUBLIC)
      PHP_ME(HiRedis, hmget, NULL, ZEND_ACC_PUBLIC)
      PHP_ME(HiRedis, setnx, NULL, ZEND_ACC_PUBLIC)
+     PHP_ME(HiRedis, ping, NULL, ZEND_ACC_PUBLIC)
 
      {NULL, NULL, NULL}
 };
@@ -110,7 +111,11 @@ static void *createStringObject(const redisReadTask *task, char *str, size_t len
                     break;
 
                 case REDIS_REPLY_STATUS:
-                    ZVAL_BOOL(z_ret, 1);
+                    if(len == 4 && strncmp(str, "PONG", 4) == 0) {
+                        ZVAL_STRINGL(z_ret, "+PONG", 5, 1);
+                    } else {
+                        ZVAL_BOOL(z_ret, 1);
+                    }
                     break;
 
                 case REDIS_REPLY_STRING:
@@ -605,6 +610,21 @@ PHP_METHOD(HiRedis, setnx) {
 
     REDIS_SOCK_GET(redis_sock);
     REDIS_RUN(redis_sock, redis_reply_long_as_bool, "SETNX %b %b", key, (size_t)key_len, val, (size_t)val_len);
+}
+/* }}} */
+
+/* {{{ proto string HiRedis::ping()
+*/
+PHP_METHOD(HiRedis, ping) {
+    zval *object;
+    RedisSock *redis_sock;
+
+    if (zend_parse_method_parameters(ZEND_NUM_ARGS() TSRMLS_CC, getThis(), "O", &object, hiredis_ce) == FAILURE) {
+        RETURN_FALSE;
+    }
+
+    REDIS_SOCK_GET(redis_sock);
+    REDIS_RUN(redis_sock, redis_reply_string, "PING");
 }
 /* }}} */
 

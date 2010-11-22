@@ -39,6 +39,7 @@ PHP_METHOD(HiRedis, hset);
 PHP_METHOD(HiRedis, hgetall);
 PHP_METHOD(HiRedis, hmget);
 PHP_METHOD(HiRedis, setnx);
+PHP_METHOD(HiRedis, ping);
 /*
 PHP_METHOD(Redis, getSet);
 PHP_METHOD(Redis, randomKey);

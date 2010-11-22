@@ -11,13 +11,13 @@
 	zval *z_reply;\
 	switch(redis_sock->mode) {\
 		case REDIS_MODE_PIPELINE:\
-			redisAppendCommand(redis_sock->ctx, pattern, __VA_ARGS__);\
+			redisAppendCommand(redis_sock->ctx, pattern, ##__VA_ARGS__);\
 			redis_enqueue(redis_sock, (void*)fun, NULL);\
 			RETURN_ZVAL(object, 1, 0);\
 			break;\
 \
 		case REDIS_MODE_TRANSACTION:\
-			z_reply = redisCommand(redis_sock->ctx, pattern, __VA_ARGS__);\
+			z_reply = redisCommand(redis_sock->ctx, pattern, ##__VA_ARGS__);\
 			if(Z_TYPE_P(z_reply) == IS_BOOL && Z_BVAL_P(z_reply) == 1) {\
 				redis_enqueue(redis_sock, (void*)fun, NULL);\
 				efree(z_reply);\
@@ -29,7 +29,7 @@
 			break;\
 \
 		case REDIS_MODE_BLOCKING:\
-			 z_reply = redisCommand(redis_sock->ctx, pattern, __VA_ARGS__);\
+			 z_reply = redisCommand(redis_sock->ctx, pattern, ##__VA_ARGS__);\
 			fun(return_value, redis_sock->mode, z_reply, NULL); \
 			break;\
 	}\
