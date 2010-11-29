@@ -6,7 +6,7 @@ function test($className, $host, $port = NULL) {
 	$c = $r->connect($host, $port);
 	printf("[%s] Connection: %s\n", $className, $c?"OK":"FAILURE");
 
-	$count = 10000;
+	$count = 1;
 
 	// SET
 	$t0 = microtime(true);
@@ -26,6 +26,8 @@ function test($className, $host, $port = NULL) {
 
 	printf("[%s] %d gets: %0.2f sec (%d/sec)\n", $className, $count, $t2-$t1, ($count)/($t2-$t1));
 
+	return;
+	/*
 	// PIPELINE
 	printf("[%s] Testing pipelining support, SET followed by GET.\n", $className);
 
@@ -36,10 +38,12 @@ function test($className, $host, $port = NULL) {
 			->exec();
 		assert($ret === array(true, 'value'));
 	}
+	 */
 	$t3 = microtime(true);
 
 	printf("[%s] %d pipelined (SET+GET): %0.2f sec (%d commands/sec)\n", $className, $count, $t3-$t2, 2*($count)/($t3-$t2));
 
+	/*
 	// MULTI/EXEC
 	for($i = 0; $i < $count; $i++) {
 		$ret = $r->multi()
@@ -48,10 +52,10 @@ function test($className, $host, $port = NULL) {
 			->exec();
 		assert($ret === array(true, 'value'));
 	}
+	 */
 
 	$t4 = microtime(true);
 	printf("[%s] %d MULTI/SET/GET/EXEC: %0.2f sec (%d/sec)\n", $className, $count, $t4-$t3, ($count)/($t4-$t3));
-
 
 	$ret = $r->delete('key');
 	assert($ret === 1);
@@ -124,9 +128,9 @@ function test($className, $host, $port = NULL) {
 
 function bench() {
 	try {
-		test("Redis", '127.0.0.1', 6379);
+//		test("Redis", '127.0.0.1', 6379);
 		test("HiRedis", '127.0.0.1', 6379);
-		test("HiRedis", '/tmp/redis.sock');
+//		test("HiRedis", '/tmp/redis.sock');
 	} catch(Exception $e) {
 		var_dump($e);
 	}

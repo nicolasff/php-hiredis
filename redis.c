@@ -92,7 +92,7 @@ ZEND_GET_MODULE(hiredis)
 #endif
 
 static void *tryParentize(const redisReadTask *task, zval *v) {
-        // php_printf("CALLBACK: %s\n", __FUNCTION__);
+        php_printf("CALLBACK: %s\n", __FUNCTION__);
         if (task && task->parent != NULL) {
                 // php_printf("INSIDE\n");
                 zval *parent = (zval *)task->parent;
@@ -104,9 +104,8 @@ static void *tryParentize(const redisReadTask *task, zval *v) {
 
 static void *createStringObject(const redisReadTask *task, char *str, size_t len) {
 
-        // php_printf("CALLBACK: %s\n", __FUNCTION__);
-        zval *z_ret;
-        MAKE_STD_ZVAL(z_ret);
+        zval *z_ret = task->privdata;
+        php_printf("CALLBACK: %s\n", __FUNCTION__);
 
         switch(task->type) {
                 case REDIS_REPLY_ERROR:
@@ -131,7 +130,7 @@ static void *createStringObject(const redisReadTask *task, char *str, size_t len
 }
 
 static void *createArrayObject(const redisReadTask *task, int elements) {
-        // php_printf("CALLBACK: %s\n", __FUNCTION__);
+        php_printf("CALLBACK: %s\n", __FUNCTION__);
         zval *z_ret;
         MAKE_STD_ZVAL(z_ret);
         array_init(z_ret);

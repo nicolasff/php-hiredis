@@ -29,6 +29,7 @@
 			break;\
 \
 		case REDIS_MODE_BLOCKING:\
+			redisReplyReaderSetPrivdata(redis_sock->ctx->reader, return_value); \
 			 z_reply = redisCommand(redis_sock->ctx, pattern, ##__VA_ARGS__);\
 			fun(return_value, redis_sock->mode, z_reply, NULL); \
 			break;\
@@ -63,6 +64,7 @@
 			break;\
 \
 		case REDIS_MODE_BLOCKING:\
+			redisReplyReaderSetPrivdata(redis_sock->ctx->reader, return_value); \
 			z_reply = redisCommandArgv(redis_sock->ctx, argc, args, arglen);\
 			/* for(i = 1; i < argc-1; i++) efree((void*)args[i]);*/ \
 			efree(args);\
