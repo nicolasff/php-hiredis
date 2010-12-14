@@ -44,7 +44,8 @@ typedef struct redisReader {
     void *reply; /* holds temporary reply */
 
     sds buf; /* read buffer */
-    unsigned int pos; /* buffer cursor */
+    size_t pos; /* buffer cursor */
+    size_t len; /* buffer length */
 
     redisReadTask rstack[3]; /* stack of read tasks */
     int ridx; /* index of stack */
@@ -69,7 +70,7 @@ static redisReplyObjectFunctions defaultFunctions = {
 
 /* Create a reply object */
 static redisReply *createReplyObject(int type) {
-    redisReply *r = calloc(sizeof(*r),1);
+    redisReply *r = malloc(sizeof(*r));
 
     if (!r) redisOOM();
     r->type = type;
@@ -89,9 +90,10 @@ void freeReplyObject(void *reply) {
             if (r->element[j]) freeReplyObject(r->element[j]);
         free(r->element);
         break;
-    default:
-        if (r->str != NULL)
-            free(r->str);
+    case REDIS_REPLY_ERROR:
+    case REDIS_REPLY_STATUS:
+    case REDIS_REPLY_STRING:
+        free(r->str);
         break;
     }
     free(r);
@@ -155,7 +157,7 @@ static void *createNilObject(const redisReadTask *task) {
 
 static char *readBytes(redisReader *r, unsigned int bytes) {
     char *p;
-    if (sdslen(r->buf)-r->pos >= bytes) {
+    if (r->len-r->pos >= bytes) {
         p = r->buf+r->pos;
         r->pos += bytes;
         return p;
@@ -163,20 +165,60 @@ static char *readBytes(redisReader *r, unsigned int bytes) {
     return NULL;
 }
 
-static char *seekNewline(char *s) {
-    /* Find pointer to \r\n without strstr */
-    while (s != NULL) {
-        s = strchr(s,'\r');
-        if (s != NULL) {
-            if (s[1] == '\n')
-                break;
-            else
-                s++;
+/* Find pointer to \r\n. */
+static char *seekNewline(char *s, size_t len) {
+    int pos = 0;
+    int _len = len-1;
+
+    /* Position should be < len-1 because the character at "pos" should be
+     * followed by a \n. Note that strchr cannot be used because it doesn't
+     * allow to search a limited length and the buffer that is being searched
+     * might not have a trailing NULL character. */
+    while (pos < _len) {
+        while(pos < _len && s[pos] != '\r') pos++;
+        if (s[pos] != '\r') {
+            /* Not found. */
+            return NULL;
         } else {
-            break;
+            if (s[pos+1] == '\n') {
+                /* Found. */
+                return s+pos;
+            } else {
+                /* Continue searching. */
+                pos++;
+            }
         }
     }
-    return s;
+    return NULL;
+}
+
+/* Read a long long value starting at *s, under the assumption that it will be
+ * terminated by \r\n. Ambiguously returns -1 for unexpected input. */
+static long long readLongLong(char *s) {
+    long long v = 0;
+    int dec, mult = 1;
+    char c;
+
+    if (*s == '-') {
+        mult = -1;
+        s++;
+    } else if (*s == '+') {
+        mult = 1;
+        s++;
+    }
+
+    while ((c = *(s++)) != '\r') {
+        dec = c - '0';
+        if (dec >= 0 && dec < 10) {
+            v *= 10;
+            v += dec;
+        } else {
+            /* Should not happen... */
+            return -1;
+        }
+    }
+
+    return mult*v;
 }
 
 static char *readLine(redisReader *r, int *_len) {
@@ -184,7 +226,7 @@ static char *readLine(redisReader *r, int *_len) {
     int len;
 
     p = r->buf+r->pos;
-    s = seekNewline(p);
+    s = seekNewline(p,(r->len-r->pos));
     if (s != NULL) {
         len = s-(r->buf+r->pos);
         r->pos += len+2; /* skip \r\n */
@@ -228,7 +270,7 @@ static int processLineItem(redisReader *r) {
     if ((p = readLine(r,&len)) != NULL) {
         if (r->fn) {
             if (cur->type == REDIS_REPLY_INTEGER) {
-                obj = r->fn->createInteger(cur,strtoll(p,NULL,10));
+                obj = r->fn->createInteger(cur,readLongLong(p));
             } else {
                 obj = r->fn->createString(cur,p,len);
             }
@@ -253,11 +295,11 @@ static int processBulkItem(redisReader *r) {
     int success = 0;
 
     p = r->buf+r->pos;
-    s = seekNewline(p);
+    s = seekNewline(p,r->len-r->pos);
     if (s != NULL) {
         p = r->buf+r->pos;
         bytelen = s-(r->buf+r->pos)+2; /* include \r\n */
-        len = strtol(p,NULL,10);
+        len = readLongLong(p);
 
         if (len < 0) {
             /* The nil object can always be created. */
@@ -267,7 +309,7 @@ static int processBulkItem(redisReader *r) {
         } else {
             /* Only continue when the buffer contains the entire bulk item. */
             bytelen += len+2; /* include \r\n */
-            if (r->pos+bytelen <= sdslen(r->buf)) {
+            if (r->pos+bytelen <= r->len) {
                 obj = r->fn ? r->fn->createString(cur,s+2,len) :
                     (void*)REDIS_REPLY_STRING;
                 success = 1;
@@ -302,7 +344,7 @@ static int processMultiBulkItem(redisReader *r) {
     }
 
     if ((p = readLine(r,NULL)) != NULL) {
-        elements = strtol(p,NULL,10);
+        elements = readLongLong(p);
         root = (r->ridx == 0);
 
         if (elements == -1) {
@@ -463,8 +505,10 @@ void redisReplyReaderFeed(void *reader, char *buf, size_t len) {
     redisReader *r = reader;
 
     /* Copy the provided buffer. */
-    if (buf != NULL && len >= 1)
+    if (buf != NULL && len >= 1) {
         r->buf = sdscatlen(r->buf,buf,len);
+        r->len = sdslen(r->buf);
+    }
 }
 
 int redisReplyReaderGetReply(void *reader, void **reply) {
@@ -472,7 +516,7 @@ int redisReplyReaderGetReply(void *reader, void **reply) {
     if (reply != NULL) *reply = NULL;
 
     /* When the buffer is empty, there will never be a reply. */
-    if (sdslen(r->buf) == 0)
+    if (r->len == 0)
         return REDIS_OK;
 
     /* Set first item to process when the stack is empty. */
@@ -493,14 +537,15 @@ int redisReplyReaderGetReply(void *reader, void **reply) {
 
     /* Discard the consumed part of the buffer. */
     if (r->pos > 0) {
-        if (r->pos == sdslen(r->buf)) {
+        if (r->pos == r->len) {
             /* sdsrange has a quirck on this edge case. */
             sdsfree(r->buf);
             r->buf = sdsempty();
         } else {
-            r->buf = sdsrange(r->buf,r->pos,sdslen(r->buf));
+            r->buf = sdsrange(r->buf,r->pos,r->len);
         }
         r->pos = 0;
+        r->len = sdslen(r->buf);
     }
 
     /* Emit a reply when there is one. */
@@ -509,7 +554,7 @@ int redisReplyReaderGetReply(void *reader, void **reply) {
         r->reply = NULL;
 
         /* Destroy the buffer when it is empty and is quite large. */
-        if (sdslen(r->buf) == 0 && sdsavail(r->buf) > 16*1024) {
+        if (r->len == 0 && sdsavail(r->buf) > 16*1024) {
             sdsfree(r->buf);
             r->buf = sdsempty();
             r->pos = 0;
@@ -557,6 +602,8 @@ int redisvFormatCommand(char **target, const char *format, va_list ap) {
     char **argv = NULL;
     int argc = 0, j;
     int totlen = 0;
+    int num;
+    double dbl;
 
     /* Abort if there is not target to set */
     if (target == NULL)
@@ -589,6 +636,17 @@ int redisvFormatCommand(char **target, const char *format, va_list ap) {
                 size = va_arg(ap,size_t);
                 if (size > 0)
                     current = sdscatlen(current,arg,size);
+                interpolated = 1;
+                break;
+            case 'd':
+            case 'i':
+                num = va_arg(ap, int);
+                current = sdscatprintf(current, "%d", num);
+                interpolated = 1;
+                break;
+            case 'f':
+                dbl = va_arg(ap, double);
+                current = sdscatprintf(current, "%0.8f", dbl);
                 interpolated = 1;
                 break;
             case '%':
@@ -726,7 +784,6 @@ void redisFree(redisContext *c) {
 redisContext *redisConnect(const char *ip, int port) {
     redisContext *c = redisContextInit();
     c->flags |= REDIS_BLOCK;
-    c->flags |= REDIS_CONNECTED;
     redisContextConnectTcp(c,ip,port);
     return c;
 }
@@ -734,7 +791,6 @@ redisContext *redisConnect(const char *ip, int port) {
 redisContext *redisConnectNonBlock(const char *ip, int port) {
     redisContext *c = redisContextInit();
     c->flags &= ~REDIS_BLOCK;
-    c->flags |= REDIS_CONNECTED;
     redisContextConnectTcp(c,ip,port);
     return c;
 }
@@ -742,7 +798,6 @@ redisContext *redisConnectNonBlock(const char *ip, int port) {
 redisContext *redisConnectUnix(const char *path) {
     redisContext *c = redisContextInit();
     c->flags |= REDIS_BLOCK;
-    c->flags |= REDIS_CONNECTED;
     redisContextConnectUnix(c,path);
     return c;
 }
@@ -750,7 +805,6 @@ redisContext *redisConnectUnix(const char *path) {
 redisContext *redisConnectUnixNonBlock(const char *path) {
     redisContext *c = redisContextInit();
     c->flags &= ~REDIS_BLOCK;
-    c->flags |= REDIS_CONNECTED;
     redisContextConnectUnix(c,path);
     return c;
 }

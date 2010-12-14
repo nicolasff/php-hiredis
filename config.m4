@@ -46,5 +46,5 @@ if test "$PHP_REDIS" != "no"; then
   dnl
   dnl PHP_SUBST(REDIS_SHARED_LIBADD)
 
-  PHP_NEW_EXTENSION(hiredis, redis.c library.c hiredis/hiredis.c hiredis/sds.c hiredis/net.c, $ext_shared)
+  PHP_NEW_EXTENSION(hiredis, redis.c library.c hooks.c hiredis/hiredis.c hiredis/sds.c hiredis/net.c, $ext_shared)
 fi

@@ -30,11 +30,15 @@ PHP_METHOD(HiRedis, ping);
 PHP_METHOD(HiRedis, get);
 PHP_METHOD(HiRedis, set);
 PHP_METHOD(HiRedis, delete);
+PHP_METHOD(HiRedis, lrange);
 PHP_METHOD(HiRedis, pipeline);
+PHP_METHOD(HiRedis, send);
 PHP_METHOD(HiRedis, multi);
 PHP_METHOD(HiRedis, exec);
 PHP_METHOD(HiRedis, incr);
 PHP_METHOD(HiRedis, decr);
+PHP_METHOD(HiRedis, incrby);
+PHP_METHOD(HiRedis, decrby);
 PHP_METHOD(HiRedis, hset);
 PHP_METHOD(HiRedis, hgetall);
 PHP_METHOD(HiRedis, hmget);
@@ -43,76 +47,76 @@ PHP_METHOD(HiRedis, getset);
 PHP_METHOD(HiRedis, ping);
 PHP_METHOD(HiRedis, renamekey);
 PHP_METHOD(HiRedis, getmultiple);
+PHP_METHOD(HiRedis, randomKey);
+PHP_METHOD(HiRedis, exists);
 /*
-PHP_METHOD(Redis, randomKey);
-PHP_METHOD(Redis, renameNx);
-PHP_METHOD(Redis, getMultiple);
-PHP_METHOD(Redis, exists);
-PHP_METHOD(Redis, decr);
-PHP_METHOD(Redis, type);
-PHP_METHOD(Redis, getKeys);
-PHP_METHOD(Redis, sortAsc);
-PHP_METHOD(Redis, sortAscAlpha);
-PHP_METHOD(Redis, sortDesc);
-PHP_METHOD(Redis, sortDescAlpha);
-PHP_METHOD(Redis, lPush);
-PHP_METHOD(Redis, rPush);
-PHP_METHOD(Redis, lPop);
-PHP_METHOD(Redis, rPop);
-PHP_METHOD(Redis, lSize);
-PHP_METHOD(Redis, lRemove);
-PHP_METHOD(Redis, listTrim);
-PHP_METHOD(Redis, lGet);
-PHP_METHOD(Redis, lGetRange);
-PHP_METHOD(Redis, lSet);
-PHP_METHOD(Redis, sAdd);
-PHP_METHOD(Redis, sSize);
-PHP_METHOD(Redis, sRemove);
-PHP_METHOD(Redis, sMove);
-PHP_METHOD(Redis, sPop);
-PHP_METHOD(Redis, sContains);
-PHP_METHOD(Redis, sMembers);
-PHP_METHOD(Redis, sInter);
-PHP_METHOD(Redis, sInterStore);
-PHP_METHOD(Redis, sUnion);
-PHP_METHOD(Redis, sUnionStore);
-PHP_METHOD(Redis, sDiff);
-PHP_METHOD(Redis, sDiffStore);
-PHP_METHOD(Redis, setTimeout);
-PHP_METHOD(Redis, save);
-PHP_METHOD(Redis, bgSave);
-PHP_METHOD(Redis, lastSave);
-PHP_METHOD(Redis, flushDB);
-PHP_METHOD(Redis, flushAll);
-PHP_METHOD(Redis, dbSize);
-PHP_METHOD(Redis, auth);
-PHP_METHOD(Redis, ttl);
-PHP_METHOD(Redis, info);
-PHP_METHOD(Redis, select);
-PHP_METHOD(Redis, move);
-PHP_METHOD(Redis, zAdd);
-PHP_METHOD(Redis, zDelete);
-PHP_METHOD(Redis, zRange);
-PHP_METHOD(Redis, zReverseRange);
-PHP_METHOD(Redis, zRangeByScore);
-PHP_METHOD(Redis, zDeleteRangeByScore);
-PHP_METHOD(Redis, zCard);
-PHP_METHOD(Redis, zScore);
-PHP_METHOD(Redis, zIncrBy);
-PHP_METHOD(Redis, zInter);
-PHP_METHOD(Redis, zUnion);
-PHP_METHOD(Redis, expireAt);
+PHP_METHOD(HiRedis, renameNx);
+PHP_METHOD(HiRedis, getMultiple);
+PHP_METHOD(HiRedis, decr);
+PHP_METHOD(HiRedis, type);
+PHP_METHOD(HiRedis, getKeys);
+PHP_METHOD(HiRedis, sortAsc);
+PHP_METHOD(HiRedis, sortAscAlpha);
+PHP_METHOD(HiRedis, sortDesc);
+PHP_METHOD(HiRedis, sortDescAlpha);
+PHP_METHOD(HiRedis, lPush);
+PHP_METHOD(HiRedis, rPush);
+PHP_METHOD(HiRedis, lPop);
+PHP_METHOD(HiRedis, rPop);
+PHP_METHOD(HiRedis, lSize);
+PHP_METHOD(HiRedis, lRemove);
+PHP_METHOD(HiRedis, listTrim);
+PHP_METHOD(HiRedis, lGet);
+PHP_METHOD(HiRedis, lGetRange);
+PHP_METHOD(HiRedis, lSet);
+PHP_METHOD(HiRedis, sAdd);
+PHP_METHOD(HiRedis, sSize);
+PHP_METHOD(HiRedis, sRemove);
+PHP_METHOD(HiRedis, sMove);
+PHP_METHOD(HiRedis, sPop);
+PHP_METHOD(HiRedis, sContains);
+PHP_METHOD(HiRedis, sMembers);
+PHP_METHOD(HiRedis, sInter);
+PHP_METHOD(HiRedis, sInterStore);
+PHP_METHOD(HiRedis, sUnion);
+PHP_METHOD(HiRedis, sUnionStore);
+PHP_METHOD(HiRedis, sDiff);
+PHP_METHOD(HiRedis, sDiffStore);
+PHP_METHOD(HiRedis, setTimeout);
+PHP_METHOD(HiRedis, save);
+PHP_METHOD(HiRedis, bgSave);
+PHP_METHOD(HiRedis, lastSave);
+PHP_METHOD(HiRedis, flushDB);
+PHP_METHOD(HiRedis, flushAll);
+PHP_METHOD(HiRedis, dbSize);
+PHP_METHOD(HiRedis, auth);
+PHP_METHOD(HiRedis, ttl);
+PHP_METHOD(HiRedis, info);
+PHP_METHOD(HiRedis, select);
+PHP_METHOD(HiRedis, move);
+PHP_METHOD(HiRedis, zAdd);
+PHP_METHOD(HiRedis, zDelete);
+PHP_METHOD(HiRedis, zRange);
+PHP_METHOD(HiRedis, zReverseRange);
+PHP_METHOD(HiRedis, zRangeByScore);
+PHP_METHOD(HiRedis, zDeleteRangeByScore);
+PHP_METHOD(HiRedis, zCard);
+PHP_METHOD(HiRedis, zScore);
+PHP_METHOD(HiRedis, zIncrBy);
+PHP_METHOD(HiRedis, zInter);
+PHP_METHOD(HiRedis, zUnion);
+PHP_METHOD(HiRedis, expireAt);
 
-PHP_METHOD(Redis, mset);
-PHP_METHOD(Redis, rpoplpush);
+PHP_METHOD(HiRedis, mset);
+PHP_METHOD(HiRedis, rpoplpush);
 
-PHP_METHOD(Redis, hSet);
-PHP_METHOD(Redis, hDel);
-PHP_METHOD(Redis, hLen);
-PHP_METHOD(Redis, hKeys);
-PHP_METHOD(Redis, hVals);
-PHP_METHOD(Redis, hExists);
-PHP_METHOD(Redis, hIncrBy);
+PHP_METHOD(HiRedis, hSet);
+PHP_METHOD(HiRedis, hDel);
+PHP_METHOD(HiRedis, hLen);
+PHP_METHOD(HiRedis, hKeys);
+PHP_METHOD(HiRedis, hVals);
+PHP_METHOD(HiRedis, hExists);
+PHP_METHOD(HiRedis, hIncrBy);
 */
 
 #ifdef PHP_WIN32
@@ -131,23 +135,37 @@ PHP_RINIT_FUNCTION(hiredis);
 PHP_RSHUTDOWN_FUNCTION(hiredis);
 PHP_MINFO_FUNCTION(hiredis);
 
-typedef enum {REDIS_MODE_BLOCKING, REDIS_MODE_PIPELINE, REDIS_MODE_TRANSACTION} redis_mode;
-typedef int (*reader_function)(zval*, redis_mode, zval *, zval **); /* callback function */
+typedef enum {REDIS_MODE_DIRECT, REDIS_MODE_TRANSACTION} redis_mode;
+typedef int (*reader_function)(zval*, zval **); /* callback function */
+
 
 typedef struct redis_command_ {
 	reader_function fun; /* callback function */
 	zval **z_args;
 	struct redis_command_ *next;
+	
+	struct redis_command_ *multi;
+
 } redis_command;
 
 /* {{{ struct RedisSock */
 typedef struct {
 	redisContext *ctx;
+
 	redis_mode mode;
 
-	int enqueued_commands;
+	/* pipeline count */
+	int pipeline;
+
+	/* count for the current transaction */
+	int multi;
+	int multi_commands;
+
 	redis_command *queue_head;
 	redis_command *queue_tail;
+
+	redis_command *multi_head;
+	redis_command *multi_tail;
 } RedisSock;
 /* }}} */
 

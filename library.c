@@ -20,181 +20,126 @@
 
 #include <zend_exceptions.h>
 
-PHPAPI int
-redis_reply_string(zval *return_value, redis_mode mode, zval *z_reply, zval **z_args) {
+int
+redis_reply_string_(zval *z, zval **z_args) {
 
-    if(Z_TYPE_P(z_reply) == IS_STRING) { /* valid */
-	    if(mode == REDIS_MODE_BLOCKING) { /* copy directly into return_value */
-		    Z_TYPE_P(return_value) = IS_STRING;
-		    Z_STRVAL_P(return_value) = Z_STRVAL_P(z_reply);
-		    Z_STRLEN_P(return_value) = Z_STRLEN_P(z_reply);
-	    } else { /* append */
-		    add_next_index_stringl(return_value, Z_STRVAL_P(z_reply), Z_STRLEN_P(z_reply), 0);
-	    }
-            efree(z_reply);
-            return 0;
-    } else { /* invalid */
-            zval_dtor(z_reply);
-            efree(z_reply);
-	    if(mode == REDIS_MODE_BLOCKING) { /* return false */
-            	ZVAL_BOOL(return_value, 0);
-	    } else { /* append false. */
-	        add_next_index_bool(return_value, 0);
-	    }
-            return 1;
+    if(Z_TYPE_P(z) != IS_STRING) { /* invalid */
+	    zval_dtor(z);
+	    ZVAL_BOOL(z, 0);
     }
+    return 0;
 }
 
 
-PHPAPI int
-redis_reply_long(zval *return_value, redis_mode mode, zval *z_reply, zval **z_args) {
-    if(Z_TYPE_P(z_reply) == IS_LONG) { /* valid */
-	    if(mode == REDIS_MODE_BLOCKING) { /* copy directly into return_value */
-		    ZVAL_LONG(return_value, Z_LVAL_P(z_reply));
-	    } else { /* append long */
-		    add_next_index_long(return_value, Z_LVAL_P(z_reply));
-	    }
-            efree(z_reply);
-            return 0;
-    } else {
-            zval_dtor(z_reply);
-            efree(z_reply);
-	    if(mode == REDIS_MODE_BLOCKING) { /* return false */
-            	ZVAL_BOOL(return_value, 0);
-	    } else { /* append false. */
-	        add_next_index_bool(return_value, 0);
-	    }
-            return 1;
-    }
+int
+redis_reply_long_(zval *z, zval **z_args) {
+	if(Z_TYPE_P(z) != IS_LONG) { /* invalid */
+		zval_dtor(z);
+		ZVAL_BOOL(z, 0);
+	}
+    return 0;
 }
 
-PHPAPI int
-redis_reply_status(zval *return_value, redis_mode mode, zval *z_reply, zval **z_args) {
-        int success = 0;
-        if(z_reply && Z_TYPE_P(z_reply) == IS_BOOL) {
-                success = Z_BVAL_P(z_reply);
-        }
-
-        zval_dtor(z_reply);
-        efree(z_reply);
-
-	if(mode == REDIS_MODE_BLOCKING) { /* return bool directly */
-                ZVAL_BOOL(return_value, success);
-        } else {
-                add_next_index_bool(return_value, success); /* append bool */
-        }
-        return 0;
+int
+redis_reply_skip_(zval *z, zval **z_args) {
+	// php_printf("SKIP THIS\n");
+	return 1;
 }
 
-PHPAPI int
-redis_reply_array(zval *return_value, redis_mode mode, zval *z_reply, zval **z_args) {
 
-	if(mode == REDIS_MODE_BLOCKING) { /* return array directly */
-		if(z_reply && Z_TYPE_P(z_reply) == IS_ARRAY) { /* success */
-			*return_value = *z_reply;
-			zval_copy_ctor(return_value);
-		} else {
-			ZVAL_BOOL(return_value, 0);
-		}
-        } else {
-		if(z_reply && Z_TYPE_P(z_reply) == IS_ARRAY) { /* success */
-			zval *z_ret = NULL;
-			MAKE_STD_ZVAL(z_ret);
-			*z_ret = *z_reply;
-			zval_copy_ctor(z_ret);
-			add_next_index_zval(return_value, z_ret); /* append array */
-		} else {
-			add_next_index_bool(return_value, 0);
-		}
-        }
-
-        zval_dtor(z_reply);
-        efree(z_reply);
-
-        return 0;
+int
+redis_reply_status_(zval *z, zval **z_args) {
+        if(Z_TYPE_P(z) != IS_BOOL) {
+		zval_dtor(z);
+		ZVAL_BOOL(z, 0);
+	}
+	return 0;
 }
 
-PHPAPI int
-redis_reply_zip(zval *return_value, redis_mode mode, zval *z_reply, zval **z_args) {
+
+int
+redis_reply_array_(zval *z, zval **z_args) {
+	if(Z_TYPE_P(z) != IS_ARRAY) { /* invalid */
+		zval_dtor(z);
+		ZVAL_BOOL(z, 0);
+	}
+	return 0;
+}
+
+int
+redis_reply_zip_(zval *z, zval **z_args) {
+
+	if(Z_TYPE_P(z) != IS_ARRAY) { /* invalid */
+		zval_dtor(z);
+		ZVAL_BOOL(z, 0);
+		return 0;
+	}
 
         zval *z_ret;
         MAKE_STD_ZVAL(z_ret);
+	array_init(z_ret);
 
-        int use_atof = 0; /* FIXME */
+	HashTable *keytable = Z_ARRVAL_P(z);
 
-        if(Z_TYPE_P(z_reply) != IS_ARRAY) {
-                ZVAL_NULL(z_ret);
-        } else {
-            array_init(z_ret);
+	for(zend_hash_internal_pointer_reset(keytable);
+			zend_hash_has_more_elements(keytable) == SUCCESS;
+			zend_hash_move_forward(keytable)) {
 
-            HashTable *keytable = Z_ARRVAL_P(z_reply);
+		char *tablekey, *hkey, *hval;
+		int tablekey_len, hkey_len, hval_len;
+		unsigned long idx;
+		int type;
+		zval **z_value_pp;
 
-            for(zend_hash_internal_pointer_reset(keytable);
-                            zend_hash_has_more_elements(keytable) == SUCCESS;
-                            zend_hash_move_forward(keytable)) {
+		type = zend_hash_get_current_key_ex(keytable, &tablekey, &tablekey_len, &idx, 0, NULL);
+		if(zend_hash_get_current_data(keytable, (void**)&z_value_pp) == FAILURE) {
+			continue; 	/* this should never happen, according to the PHP people. */
+		}
 
-                    char *tablekey, *hkey, *hval;
-                    int tablekey_len, hkey_len, hval_len;
-                    unsigned long idx;
-                    int type;
-                    zval **z_value_pp;
+		/* get current value, a key */
+		hkey = Z_STRVAL_PP(z_value_pp);
+		hkey_len = Z_STRLEN_PP(z_value_pp);
 
-                    type = zend_hash_get_current_key_ex(keytable, &tablekey, &tablekey_len, &idx, 0, NULL);
-                    if(zend_hash_get_current_data(keytable, (void**)&z_value_pp) == FAILURE) {
-                            continue; 	/* this should never happen, according to the PHP people. */
-                    }
+		/* move forward */
+		zend_hash_move_forward(keytable);
 
-                    /* get current value, a key */
-                    hkey = Z_STRVAL_PP(z_value_pp);
-                    hkey_len = Z_STRLEN_PP(z_value_pp);
+		/* fetch again */
+		type = zend_hash_get_current_key_ex(keytable, &tablekey, &tablekey_len, &idx, 0, NULL);
+		if(zend_hash_get_current_data(keytable, (void**)&z_value_pp) == FAILURE) {
+			continue; 	/* this should never happen, according to the PHP people. */
+		}
 
-                    /* move forward */
-                    zend_hash_move_forward(keytable);
+		/* get current value, a hash value now. */
+		hval = Z_STRVAL_PP(z_value_pp);
+		hval_len = Z_STRLEN_PP(z_value_pp);
 
-                    /* fetch again */
-                    type = zend_hash_get_current_key_ex(keytable, &tablekey, &tablekey_len, &idx, 0, NULL);
-                    if(zend_hash_get_current_data(keytable, (void**)&z_value_pp) == FAILURE) {
-                            continue; 	/* this should never happen, according to the PHP people. */
-                    }
-
-                    /* get current value, a hash value now. */
-                    hval = Z_STRVAL_PP(z_value_pp);
-                    hval_len = Z_STRLEN_PP(z_value_pp);
-
-                    if(use_atof) {
-                            add_assoc_double_ex(z_ret, hkey, 1+hkey_len, atof(hval));
-                    } else {
-                            add_assoc_stringl_ex(z_ret, hkey, 1+hkey_len, hval, hval_len, 1);
-                    }
-            }
-
-        }
-	if(mode == REDIS_MODE_BLOCKING) { /* copy z_ret into return_value directly */
-		*return_value = *z_ret;
-		zval_copy_ctor(return_value);
-		zval_dtor(z_ret);
-		efree(z_ret);
-	} else { /* append z_ret to return_value array */
-		add_next_index_zval(return_value, z_ret);
+		add_assoc_stringl_ex(z_ret, hkey, 1+hkey_len, hval, hval_len, 1);
 	}
+	/* copy back into z */
+	zval_dtor(z);
+	*z = *z_ret;
+	zval_copy_ctor(z);
+	zval_dtor(z_ret);
+	efree(z_ret);
 
-        return 0;
+	return 0;
+
 }
 
-PHPAPI int
-redis_reply_zip_closure(zval *return_value, redis_mode mode, zval *z_reply, zval **z_args) {
+int
+redis_reply_zip_closure_(zval *z, zval **z_args) {
 
 	int i;
 
         zval *z_ret;
         MAKE_STD_ZVAL(z_ret);
 
-        if(Z_TYPE_P(z_reply) != IS_ARRAY) {
+        if(Z_TYPE_P(z) != IS_ARRAY) {
                 ZVAL_NULL(z_ret);
         } else {
             array_init(z_ret);
 
-            HashTable *ht_vals = Z_ARRVAL_P(z_reply);
+            HashTable *ht_vals = Z_ARRVAL_P(z);
 
 	    /* zip together z_args as keys, z_reply as values */
 
@@ -208,26 +153,42 @@ redis_reply_zip_closure(zval *return_value, redis_mode mode, zval *z_reply, zval
                             continue; 	/* this should never happen, according to the PHP people. */
                     }
 
-                    add_assoc_stringl_ex(z_ret, Z_STRVAL_P(z_args[i]), 1+Z_STRLEN_P(z_args[i]), Z_STRVAL_PP(z_val_pp), Z_STRLEN_PP(z_val_pp), 1);
+		    zval *z_copy;
+		    MAKE_STD_ZVAL(z_copy);
+		    *z_copy = **z_val_pp;
+		    zval_copy_ctor(z_copy);
+
+                    add_assoc_zval_ex(z_ret, Z_STRVAL_P(z_args[i]), 1+Z_STRLEN_P(z_args[i]), z_copy);
             }
         }
 
-	if(mode == REDIS_MODE_BLOCKING) { /* copy z_ret into return_value directly */
-		*return_value = *z_ret;
-		zval_copy_ctor(return_value);
-		zval_dtor(z_ret);
-		efree(z_ret);
-	} else { /* append z_ret to return_value array */
-		add_next_index_zval(return_value, z_ret);
-	}
+	/* copy back into z directly */
+	zval_dtor(z);
+	*z = *z_ret;
+	zval_copy_ctor(z);
+	zval_dtor(z_ret);
+	efree(z_ret);
 
 	efree(z_args);
 
         return 0;
 }
 
+static void
+redis_enqueue_(redis_command **h, redis_command **t, redis_command *c) {
+
+	if(*t == NULL) {
+		*t = c;
+		*h = c;
+	} else {
+		(*t)->next = c;
+		*t = c;
+	}
+
+}
+
 PHPAPI void
-redis_enqueue(RedisSock *redis_sock, void *fun, zval **z_args) {
+redis_enqueue(RedisSock *redis_sock, validator_fun fun, zval **z_args) {
 
 	redis_command *c = ecalloc(1, sizeof(redis_command));
 	c->fun = fun;
@@ -236,19 +197,23 @@ redis_enqueue(RedisSock *redis_sock, void *fun, zval **z_args) {
 		c->z_args = z_args;
 	}
 
-	/* enqueue */
-	if(redis_sock->queue_tail == NULL) {
-		redis_sock->queue_tail = redis_sock->queue_head = c;
-	} else {
-		redis_sock->queue_tail->next = c;
+	if(redis_sock->multi) {
+		/* add skip to the main queue */
+		redis_command *skip = ecalloc(1, sizeof(redis_command));
+		skip->fun = redis_reply_skip_;
+		redis_enqueue_(&redis_sock->queue_head, &redis_sock->queue_tail, skip);
+
+		/* add real reader to a temporary queue */
+		redis_enqueue_(&redis_sock->multi_head, &redis_sock->multi_tail, c);
+
+		redis_sock->multi_commands++; /* count recorded commands */
+	} else { /* enqueue normally */
+		redis_enqueue_(&redis_sock->queue_head, &redis_sock->queue_tail, c);
 	}
-	redis_sock->enqueued_commands++;
 }
 
-
-
 PHPAPI void
-redis_varg_run(INTERNAL_FUNCTION_PARAMETERS, char *keyword, void *fun, int keep_args) {
+redis_varg_run(INTERNAL_FUNCTION_PARAMETERS, char *keyword, validator_fun fun, int keep_args) {
 
 
     zval *object = getThis();
@@ -320,24 +285,16 @@ redis_varg_run(INTERNAL_FUNCTION_PARAMETERS, char *keyword, void *fun, int keep_
     }
 }
 
-PHPAPI int redis_reply_long_as_bool(zval *return_value, redis_mode mode, zval *z_reply, zval **z_args) {
+int
+redis_reply_long_as_bool_(zval *z, zval **z_args) {
 
-    if(Z_TYPE_P(z_reply) == IS_LONG) { /* valid */
-	    if(mode == REDIS_MODE_BLOCKING) { /* copy directly into return_value */
-		    ZVAL_BOOL(return_value, Z_LVAL_P(z_reply) == 1 ? 1 : 0);
-	    } else { /* append long */
-		    add_next_index_bool(return_value, Z_LVAL_P(z_reply) == 1 ? 1 : 0);
-	    }
-            efree(z_reply);
-            return 0;
-    } else {
-            zval_dtor(z_reply);
-            efree(z_reply);
-	    if(mode == REDIS_MODE_BLOCKING) { /* return false */
-            	ZVAL_BOOL(return_value, 0);
-	    } else { /* append false. */
-	        add_next_index_bool(return_value, 0);
-	    }
-            return 1;
-    }
+	if(Z_TYPE_P(z) == IS_LONG) { /* valid */
+		zend_bool b = Z_LVAL_P(z) == 1 ? 1 : 0;
+		ZVAL_BOOL(z, b);
+	} else {
+		zval_dtor(z);
+		efree(z);
+		ZVAL_BOOL(z, 0);
+	}
+	return 0;
 }

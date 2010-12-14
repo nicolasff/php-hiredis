@@ -1,27 +1,104 @@
 <?php
 
+
 function test($className, $host, $port = NULL) {
+	
+/*
+	$r = new Redis;
+	$r->connect($host, $port);
+	$r->delete('list');
+	$r->lpush('list', 'def');
+	$r->lpush('list', 'abc');
+
 	printf("testing %s on %s\n", $className, $host);
+ */
 	$r = new $className;
 	$c = $r->connect($host, $port);
-	printf("[%s] Connection: %s\n", $className, $c?"OK":"FAILURE");
+/*	printf("[%s] Connection: %s\n", $className, $c?"OK":"FAILURE");
+
+
+	var_dump($r->set('key', 'value'));
+	var_dump($r->lrange('list', 0, -1));
+
+	echo "------------- PIPELINE ----------------\n";
+
+	$out = $r->pipeline();
+	$out->set('key', 'value');
+	var_dump($r->lrange('list', 0, -1));
+	var_dump($out);
+	var_dump($out->send());
+	 
+	echo "------------- MULTI/EXEC ----------------\n";
+
+	$out = $r->multi()
+		->set('key', 'value')
+		->lrange('list', 0, -1)
+		->exec();
+	var_dump($out);
+
+	echo "------------- BOTH ----------------\n";
+
+	echo "\n\nSET\n";
+	var_dump($r->set('key', 'val1'));
+	var_dump($r->get('key'));
+
+	echo "\n\nPIPELINE\n";
+	$r->pipeline();
+
+	echo "\n\nSET\n";
+	$r->set('key', 'val1');
+
+	echo "\n\nMULTI\n";
+	$r->multi();
+
+	echo "\n\nSET\n";
+	$r->set('key', 'value');
+
+	echo "\n\nLRANGE\n";
+	$r->lrange('list', 0, -1);
+
+	echo "\n\nEXEC\n";
+	$r->exec();
+
+	$out = $r->send();
+	var_dump($out);
+
+*/
+
+	echo "----------------------------------------\n";
+	$r->delete('key');
+	$r->hset('key', 'x', 'a');
+	$r->hset('key', 'y', 'b');
+	$r->hset('key', 'z', 'c');
+	$r->hset('key', 't', 'd');
+	var_dump($r->hgetall('key'));
+
+	var_dump($r->hmget('key', array('x', 't')));
+	var_dump($r->hmget('key', 'x', 'd'));
+
+
+	return;
 
 	$count = 1;
 
 	// SET
 	$t0 = microtime(true);
+	/*
 	for($i = 0; $i < $count; $i++) {
 		$ret = $r->set('key', 'value');
 		assert($ret === true);
 	}
+	 */
 	$t1 = microtime(true);
 	printf("[%s] %d sets: %0.2f sec (%d/sec)\n", $className, $count, $t1-$t0, ($count)/($t1-$t0));
 
 	// GET
+	/*
 	for($i = 0; $i < $count; $i++) {
 		$ret = $r->get('key');
 		assert($ret === 'value');
 	}
+	 */
 	$t2 = microtime(true);
 
 	printf("[%s] %d gets: %0.2f sec (%d/sec)\n", $className, $count, $t2-$t1, ($count)/($t2-$t1));
